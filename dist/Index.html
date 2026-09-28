@@ -412,19 +412,57 @@
   /* ================================================================ */
   /* Server calls                                                     */
   /* ================================================================ */
-  function run(fn, args) {
+  /*
+   * Two transports, same server functions:
+   *  - Hosted on GitHub Pages: config.js sets window.CL_API_URL (the Apps Script
+   *    /exec URL) and calls go through JSON-P, like the ClickLounge POS. JSON-P
+   *    follows Apps Script's redirects on every browser, including iPhone Safari.
+   *  - Served by Apps Script itself: google.script.run.
+   */
+  const API_URL = String(window.CL_API_URL || '').trim();
+  let jsonpSeq = 0;
+  function jsonp(fn, args) {
+    return new Promise((resolve, reject) => {
+      const cb = '__clcb_' + Date.now().toString(36) + '_' + (jsonpSeq++);
+      const data = btoa(unescape(encodeURIComponent(JSON.stringify({ fn: fn, args: args }))));
+      const script = document.createElement('script');
+      let done = false;
+      const finish = (err, res) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        window[cb] = () => {}; // a late reply after a timeout is ignored
+        setTimeout(() => { script.remove(); try { delete window[cb]; } catch (e) { /* ignore */ } }, 15000);
+        if (err) reject(err); else resolve(res);
+      };
+      // Apps Script can take a while to wake up after being idle.
+      const timer = setTimeout(() => finish(new Error('The server took too long to respond. Please try again.')), 60000);
+      window[cb] = (res) => finish(null, res);
+      script.onerror = () => finish(new Error('Could not reach the server. Check your internet connection and try again.'));
+      script.src = API_URL + (API_URL.indexOf('?') === -1 ? '?' : '&') + 'd=' + encodeURIComponent(data) + '&callback=' + cb;
+      document.head.appendChild(script);
+    });
+  }
+  function transport(fn, args) {
+    if (API_URL) return jsonp(fn, args);
+    if (typeof google === 'undefined' || !google.script) {
+      return Promise.reject(new Error('This page is not connected to the server yet. Set the Apps Script URL in config.js (see README → GitHub Pages).'));
+    }
     return new Promise((resolve, reject) => {
       const runner = google.script.run
-        .withSuccessHandler((res) => {
-          if (!res) return reject(new Error('No response from the server. Please try again.'));
-          if (res.success) return resolve(res);
-          if (res.code === 'AUTH') signedOut(res.error);
-          const e = new Error(res.error || 'Request failed.');
-          e.code = res.code;
-          reject(e);
-        })
+        .withSuccessHandler(resolve)
         .withFailureHandler((err) => reject(new Error((err && err.message) || String(err))));
       runner[fn].apply(runner, args);
+    });
+  }
+  function run(fn, args) {
+    return transport(fn, args).then((res) => {
+      if (!res) throw new Error('No response from the server. Please try again.');
+      if (res.success) return res;
+      if (res.code === 'AUTH') signedOut(res.error);
+      const e = new Error(res.error || 'Request failed.');
+      e.code = res.code;
+      throw e;
     });
   }
   /** Calls a server function with the session token; resolves the full response. */

@@ -312,5 +312,51 @@ function runE2E() {
     return err(login('staff.b@example.com', 'bravo-2026'), 'AUTH_LOCKED');
   });
 
+  // ---------- GitHub Pages JSON-P API (Api.gs) ----------
+  // Encodes exactly like the browser (JS.html → jsonp()).
+  const apiRaw = (payload, callback) => {
+    const d = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+    return doGet({ parameter: { d: d, callback: callback || 'cb_1' } });
+  };
+  const apiCall = (fn, args) => {
+    const out = apiRaw({ fn: fn, args: args });
+    const text = out.getContent();
+    if (out.getMimeType() !== 'JAVASCRIPT' || text.indexOf('cb_1(') !== 0) throw new Error('Bad JSON-P response: ' + text.slice(0, 80));
+    return JSON.parse(text.slice(5, -2));
+  };
+  M.setActiveEmail(''); // GitHub Pages: Google never identifies the visitor
+  let pagesAdmin;
+  t('API: visitor without a session gets the login screen', () => eq(ok(apiCall('bootstrap', [null])).needsLogin, true));
+  t('API: owner sets own access code (sheet menu helper) and signs in', () => {
+    setAccessCodeForEmail_(M.OWNER_EMAIL, 'owner-code-2026', 'Owner');
+    const d = ok(apiCall('login', [M.OWNER_EMAIL, 'owner-code-2026']));
+    eq(d.user.isAdmin, true);
+    pagesAdmin = d.token;
+  });
+  t('API: admin call works with the token', () => eq(ok(apiCall('listUsers', [pagesAdmin])).length > 2, true));
+  t('API: staff token is still FORBIDDEN from admin functions', () => {
+    const tok = ok(apiCall('login', ['staff.a@example.com', 'alpha-2026'])).token;
+    err(apiCall('listUsers', [tok]), 'FORBIDDEN');
+    eq(ok(apiCall('getMyDashboard', [tok, ''])).detail.staffName, 'Staff A');
+  });
+  t('API: owner-only and private functions cannot be called', () => {
+    ['setupDemoData', 'setupDatabase', 'calculateCommission_', 'constructor', 'toString', '__proto__', 'installDailyTrigger']
+      .forEach((fn) => err(apiCall(fn, [pagesAdmin]), 'BAD_REQUEST'));
+  });
+  t('API: unsafe callback names are refused', () => {
+    const text = apiRaw({ fn: 'bootstrap', args: [null] }, 'alert(1)//').getContent();
+    eq(text.indexOf('alert'), -1);
+  });
+  t('API: malformed request → friendly error', () => {
+    const text = doGet({ parameter: { d: '%%%not-base64', callback: 'cb_1' } }).getContent();
+    eq(JSON.parse(text.slice(5, -2)).code, 'BAD_REQUEST');
+  });
+  t('API: accented names and ₱ survive the round trip', () => {
+    const name = 'Niño Ñuñez — ₱ “Prestige”';
+    const id = ok(apiCall('saveSale', [pagesAdmin, { SaleDate: month + '-05', ClientName: name, PackageID: pkg5000.PackageID, StaffID: A.UserID }])).saleId;
+    const s = ok(apiCall('listSales', [pagesAdmin, { month: month }])).sales.find((x) => x.SaleID === id);
+    eq(s.ClientName, name);
+  });
+
   return R;
 }

@@ -12,7 +12,13 @@
 
 const APP_VERSION = '1.0.0';
 
-function doGet() {
+/**
+ * Two entry points on one URL:
+ *  - ?d=…&callback=… → JSON-P API for the GitHub Pages frontend (Api.gs)
+ *  - no parameters   → the full app served by Apps Script itself
+ */
+function doGet(e) {
+  if (e && e.parameter && e.parameter.d) return handleApiRequest_(e);
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
     .setTitle('ClickLounge Sales Dashboard')
@@ -29,7 +35,8 @@ function include_(filename) {
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('ClickLounge')
     .addItem('1. Set up / repair database', 'setupDatabase')
-    .addItem('2. Load demo data (Staff A & B)', 'setupDemoData')
+    .addItem('2. Set my access code (for signing in)', 'setMyAccessCodeFromMenu')
+    .addItem('3. Load demo data (Staff A & B)', 'setupDemoData')
     .addSeparator()
     .addItem('Run commission tests', 'runCommissionTestsFromMenu')
     .addItem('Install daily month-end check', 'installDailyTrigger')
@@ -157,6 +164,64 @@ function installDailyTrigger() {
   } catch (e) {
     console.log('Daily trigger installed.');
   }
+}
+
+
+// ===== Api.gs =====
+/**
+ * Api.gs
+ * JSON-P endpoint so the frontend can be hosted outside Apps Script
+ * (e.g. GitHub Pages), the same way the ClickLounge POS talks to its script.
+ *
+ * Request:  GET <web app URL>?d=<base64(JSON {fn, args})>&callback=<name>
+ * Response: <name>({ success, data, message } | { success:false, error, code })
+ *
+ * Only the functions listed in apiFunctions_() can be called. Each of them
+ * still checks the session token and role itself, exactly as with
+ * google.script.run. Owner-only maintenance (setupDatabase, setupDemoData,
+ * triggers) and private "_" helpers are never reachable from here.
+ */
+
+function apiFunctions_() {
+  return {
+    bootstrap: bootstrap, login: login, logout: logout, changeMyAccessCode: changeMyAccessCode,
+    listUsers: listUsers, getAllStaff: getAllStaff, saveUser: saveUser, setUserAccessCode: setUserAccessCode,
+    getSettings: getSettings, saveSettings: saveSettings,
+    getCommissionRules: getCommissionRules, saveCommissionRules: saveCommissionRules,
+    getAuditLog: getAuditLog, getCommission: getCommission,
+    listSchedules: listSchedules, getSchedule: getSchedule, getScheduleTemplate: getScheduleTemplate,
+    saveSchedule: saveSchedule, duplicateSchedule: duplicateSchedule, duplicateMonth: duplicateMonth,
+    changeScheduleStatus: changeScheduleStatus, deleteSchedule: deleteSchedule, getMySchedules: getMySchedules,
+    listSales: listSales, saveSale: saveSale, deleteSale: deleteSale,
+    listPackages: listPackages, savePackage: savePackage,
+    getReport: getReport, getStatement: getStatement,
+    getAdminDashboard: getAdminDashboard, getMyDashboard: getMyDashboard
+  };
+}
+
+/** Handles one JSON-P request (called from doGet when ?d= is present). */
+function handleApiRequest_(e) {
+  const p = (e && e.parameter) || {};
+  const callback = String(p.callback || '');
+  if (!/^[A-Za-z_$][\w$]{0,63}$/.test(callback)) {
+    return ContentService.createTextOutput('/* invalid callback */').setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  let response;
+  try {
+    const json = Utilities.newBlob(Utilities.base64Decode(String(p.d || ''))).getDataAsString('UTF-8');
+    const req = JSON.parse(json);
+    const fn = apiFunctions_()[req && req.fn];
+    if (!fn || !Object.prototype.hasOwnProperty.call(apiFunctions_(), req.fn)) {
+      response = fail_('Unknown action.', 'BAD_REQUEST');
+    } else {
+      response = fn.apply(null, Array.isArray(req.args) ? req.args : []);
+    }
+  } catch (err) {
+    response = fail_('The request could not be read. Please reload the page and try again.', 'BAD_REQUEST');
+  }
+  // U+2028/2029 are valid in JSON but not in older JS string literals.
+  const body = JSON.stringify(response).replace(new RegExp(String.fromCharCode(0x2028), 'g'), '\\u2028').replace(new RegExp(String.fromCharCode(0x2029), 'g'), '\\u2029');
+  return ContentService.createTextOutput(callback + '(' + body + ');').setMimeType(ContentService.MimeType.JAVASCRIPT);
 }
 
 
@@ -2744,7 +2809,8 @@ function setupDatabase() {
     seedTemplateTiers_(log);
     logAudit_('System', 'Ran setupDatabase()', 'Setup', '', log.join(' | '));
   });
-  const summary = 'Database ready.\n\n' + (log.length ? log.join('\n') : 'Everything was already set up.');
+  const summary = 'Database ready.\n\n' + (log.length ? log.join('\n') : 'Everything was already set up.') +
+    '\n\nNext: reload this spreadsheet, then use ClickLounge → "Set my access code" so you can sign in from GitHub Pages.';
   console.log(summary);
   try {
     SpreadsheetApp.getUi().alert(summary);
@@ -2860,6 +2926,45 @@ function seedTemplateTiers_(log) {
     hasTiers ? getTiers_(TEMPLATE_ID) : sampleCommissionTiers_(),
     hasBonus ? getBonusTiers_(TEMPLATE_ID) : sampleBonusTiers_(), null, '');
   log.push('Added sample commission and bonus tiers (default template)');
+}
+
+/**
+ * Sheet menu: lets the owner set their own access code. Needed when the app is
+ * opened from GitHub Pages, where Google sign-in cannot identify anyone.
+ */
+function setMyAccessCodeFromMenu() {
+  assertOwnerContext_();
+  resetExecutionCaches_();
+  const ui = SpreadsheetApp.getUi();
+  const email = getGoogleEmail_();
+  const res = ui.prompt('Set your access code',
+    'You will sign in to the Sales Dashboard with:\n' + email + '\n\nEnter a new access code (at least 6 characters). ' +
+    'Make sure nobody is looking at your screen.', ui.ButtonSet.OK_CANCEL);
+  if (res.getSelectedButton() !== ui.Button.OK) return;
+  try {
+    setAccessCodeForEmail_(email, res.getResponseText(), actorLabel_({ name: 'Owner', email: email }));
+    ui.alert('Access code saved.\n\nSign in to the Sales Dashboard with ' + email + ' and this code.');
+  } catch (e) {
+    ui.alert(e.message);
+  }
+}
+
+/** Sets an access code by email (used by the owner menu). */
+function setAccessCodeForEmail_(email, code, actor) {
+  const clean = validateAccessCode_(code);
+  return withLock_(function () {
+    let row = findUserByEmail_(email);
+    if (!row && isAdminEmail_(email)) {
+      syncAdminUsers_('System');
+      row = findUserByEmail_(email);
+    }
+    if (!row) throw appError_(email + ' is not a user yet. Run "Set up / repair database" first.');
+    const salt = Utilities.getUuid();
+    updateRow_(SHEET.USERS, 'UserID', row.UserID, {
+      AccessCodeHash: hashAccessCode_(clean, salt), AccessCodeSalt: salt, UpdatedAt: nowStr_()
+    });
+    logAudit_(actor, 'Set own access code from the spreadsheet menu', row.UserID, '', '(hidden)');
+  });
 }
 
 /* ------------------------------------------------------------------ */

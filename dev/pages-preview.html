@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ClickLounge — GitHub Pages preview</title>
+  <style>html, body { margin: 0; height: 100%; } #app { border: 0; width: 100%; height: 100%; display: block; }</style>
+</head>
+<body>
+  <!--
+    Previews the generated GitHub Pages site (../index.html) exactly as deployed,
+    including the JSON-P transport. Requests to the "Apps Script URL" are answered by
+    the real doGet() running in server.html against the in-memory mock.
+    Sign in: owner@clicklounge.test / owner-2026 (Admin), staff.a@example.com / alpha-2026 (Staff).
+  -->
+  <iframe id="server" src="server.html?as=none" hidden></iframe>
+  <iframe id="app" title="ClickLounge Sales Dashboard"></iframe>
+  <script>
+    const STUB = location.origin + '/dev/jsonp-stub.js';
+    const server = document.getElementById('server');
+    /** Runs the real Apps Script doGet() for a JSON-P URL and returns the response text. */
+    window.__jsonpServe = async (src) => {
+      const w = server.contentWindow;
+      await w.serverReady;
+      if (!w.__pagesReady) {
+        w.__mock.setActiveEmail(w.__mock.OWNER_EMAIL);
+        w.setAccessCodeForEmail_(w.__mock.OWNER_EMAIL, 'owner-2026', 'Preview');
+        w.__mock.setActiveEmail(''); // GitHub Pages: no Google identity
+        w.__pagesReady = true;
+      }
+      const u = new URL(src);
+      await new Promise((r) => setTimeout(r, 150));
+      return w.doGet({ parameter: { d: u.searchParams.get('d'), callback: u.searchParams.get('callback') } }).getContent();
+    };
+    const intercept = `<script>
+      window.CL_API_URL = ${JSON.stringify(STUB)};
+      new MutationObserver(function (list) {
+        list.forEach(function (m) { m.addedNodes.forEach(function (n) {
+          if (n.tagName === 'SCRIPT' && n.src && n.src.indexOf(${JSON.stringify(STUB)}) === 0) {
+            parent.__jsonpServe(n.src).then(function (text) { (0, eval)(text); });
+          }
+        }); });
+      }).observe(document.documentElement, { childList: true, subtree: true });
+    <\/script>`;
+    fetch('../index.html', { cache: 'no-store' }).then((r) => r.text()).then((html) => {
+      html = html.replace('<script src="config.js"><\/script>', '').replace('<head>', () => '<head>' + intercept);
+      document.getElementById('app').src = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+    });
+  </script>
+</body>
+</html>

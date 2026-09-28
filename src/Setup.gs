@@ -92,7 +92,8 @@ function setupDatabase() {
     seedTemplateTiers_(log);
     logAudit_('System', 'Ran setupDatabase()', 'Setup', '', log.join(' | '));
   });
-  const summary = 'Database ready.\n\n' + (log.length ? log.join('\n') : 'Everything was already set up.');
+  const summary = 'Database ready.\n\n' + (log.length ? log.join('\n') : 'Everything was already set up.') +
+    '\n\nNext: reload this spreadsheet, then use ClickLounge → "Set my access code" so you can sign in from GitHub Pages.';
   console.log(summary);
   try {
     SpreadsheetApp.getUi().alert(summary);
@@ -208,6 +209,45 @@ function seedTemplateTiers_(log) {
     hasTiers ? getTiers_(TEMPLATE_ID) : sampleCommissionTiers_(),
     hasBonus ? getBonusTiers_(TEMPLATE_ID) : sampleBonusTiers_(), null, '');
   log.push('Added sample commission and bonus tiers (default template)');
+}
+
+/**
+ * Sheet menu: lets the owner set their own access code. Needed when the app is
+ * opened from GitHub Pages, where Google sign-in cannot identify anyone.
+ */
+function setMyAccessCodeFromMenu() {
+  assertOwnerContext_();
+  resetExecutionCaches_();
+  const ui = SpreadsheetApp.getUi();
+  const email = getGoogleEmail_();
+  const res = ui.prompt('Set your access code',
+    'You will sign in to the Sales Dashboard with:\n' + email + '\n\nEnter a new access code (at least 6 characters). ' +
+    'Make sure nobody is looking at your screen.', ui.ButtonSet.OK_CANCEL);
+  if (res.getSelectedButton() !== ui.Button.OK) return;
+  try {
+    setAccessCodeForEmail_(email, res.getResponseText(), actorLabel_({ name: 'Owner', email: email }));
+    ui.alert('Access code saved.\n\nSign in to the Sales Dashboard with ' + email + ' and this code.');
+  } catch (e) {
+    ui.alert(e.message);
+  }
+}
+
+/** Sets an access code by email (used by the owner menu). */
+function setAccessCodeForEmail_(email, code, actor) {
+  const clean = validateAccessCode_(code);
+  return withLock_(function () {
+    let row = findUserByEmail_(email);
+    if (!row && isAdminEmail_(email)) {
+      syncAdminUsers_('System');
+      row = findUserByEmail_(email);
+    }
+    if (!row) throw appError_(email + ' is not a user yet. Run "Set up / repair database" first.');
+    const salt = Utilities.getUuid();
+    updateRow_(SHEET.USERS, 'UserID', row.UserID, {
+      AccessCodeHash: hashAccessCode_(clean, salt), AccessCodeSalt: salt, UpdatedAt: nowStr_()
+    });
+    logAudit_(actor, 'Set own access code from the spreadsheet menu', row.UserID, '', '(hidden)');
+  });
 }
 
 /* ------------------------------------------------------------------ */

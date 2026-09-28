@@ -17,7 +17,7 @@ page in the real deployment.
 
 Run all of them at `http://localhost:8765/dev/tests.html` (see README → Local testing).
 
-**Result: 78 / 78 passed.**
+**Result: 86 / 86 passed.**
 
 ## Specification test cases (§38)
 
@@ -91,8 +91,13 @@ The §14 table (Staff A ₱92,000 → ₱2,760 → ₱10,760; Staff B ₱118,000
 | Duplicate month (§17) | Copies every schedule as Draft. A second run creates nothing. |
 | Reports (§25–26) | Totals equal the sum of rows. A paid month's statement comes from the snapshot (18 sales, 5 tiers, ₱10,760). |
 | Settings | Cannot remove your own Admin email. |
+| GitHub Pages API (`Api.gs`) | JSON-P round trip encoded exactly like the browser. Visitor without a session → login. Owner sets own code via the sheet-menu helper and signs in. Admin calls work with the token. Staff token still FORBIDDEN from admin calls. `setupDemoData`, `setupDatabase`, `installDailyTrigger`, `calculateCommission_`, `constructor`, `toString`, `__proto__` all refused. Unsafe callback names refused. Malformed request → friendly error. Accented names and ₱ survive the round trip. |
 
 ## UI checks (local preview, desktop 1360 px and phone 375 px)
+
+- GitHub Pages build (`dev/pages-preview.html`): the generated `index.html` signs in with
+  email + access code and loads the dashboard, and recording a sale updates it. Every call
+  goes through the real JSON-P transport and `doGet()`, with no `google.script.run`.
 
 - Admin dashboard KPIs, sortable staff table (no ranking labels), month switcher.
 - Sales: record a shared sale 60/40 with a live ₱3,000 / ₱2,000 preview. An empty client
@@ -111,8 +116,9 @@ These depend on Google's real services and could not be exercised locally:
 
 1. Run `setupDatabase()` and confirm the ten tabs, the currency format on money columns,
    and that `ClientContact` keeps leading zeros (e.g. `09171234567`).
-2. Open the web app as the owner → Admin dashboard, with no login screen.
-3. In a private window with another Google account → login screen. Sign in with a staff
+2. Set your access code (ClickLounge → Set my access code). Open the GitHub Pages link and
+   sign in as the owner → Admin dashboard.
+3. On a phone (Safari) in a private tab, open the GitHub Pages link and sign in with a staff
    email + access code → staff menu only.
 4. Record a sale dated today and check that the date in the Sales sheet is correct
    (timezone).

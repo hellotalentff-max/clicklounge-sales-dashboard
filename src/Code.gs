@@ -9,7 +9,13 @@
 
 const APP_VERSION = '1.0.0';
 
-function doGet() {
+/**
+ * Two entry points on one URL:
+ *  - ?d=…&callback=… → JSON-P API for the GitHub Pages frontend (Api.gs)
+ *  - no parameters   → the full app served by Apps Script itself
+ */
+function doGet(e) {
+  if (e && e.parameter && e.parameter.d) return handleApiRequest_(e);
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
     .setTitle('ClickLounge Sales Dashboard')
@@ -26,7 +32,8 @@ function include_(filename) {
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('ClickLounge')
     .addItem('1. Set up / repair database', 'setupDatabase')
-    .addItem('2. Load demo data (Staff A & B)', 'setupDemoData')
+    .addItem('2. Set my access code (for signing in)', 'setMyAccessCodeFromMenu')
+    .addItem('3. Load demo data (Staff A & B)', 'setupDemoData')
     .addSeparator()
     .addItem('Run commission tests', 'runCommissionTestsFromMenu')
     .addItem('Install daily month-end check', 'installDailyTrigger')

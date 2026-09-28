@@ -165,11 +165,20 @@
     formatDate: formatDate,
     getUuid: () => crypto.randomUUID(),
     computeDigest: (alg, text) => sha256Bytes(String(text)),
+    base64Decode: (b64) => Array.from(atob(b64), (c) => { const v = c.charCodeAt(0); return v > 127 ? v - 256 : v; }),
+    newBlob: (bytes) => ({ getDataAsString: () => new TextDecoder('utf-8').decode(Uint8Array.from(bytes, (b) => (b + 256) % 256)) }),
     DigestAlgorithm: { SHA_256: 'SHA_256' },
     Charset: { UTF_8: 'UTF_8' },
     sleep: () => {}
   };
   g.HtmlService = { XFrameOptionsMode: { DEFAULT: 'DEFAULT', ALLOWALL: 'ALLOWALL' } };
+  g.ContentService = {
+    MimeType: { JAVASCRIPT: 'JAVASCRIPT', JSON: 'JSON', TEXT: 'TEXT' },
+    createTextOutput: (text) => {
+      const out = { mime: 'TEXT', getContent: () => text, setMimeType: (m) => { out.mime = m; return out; }, getMimeType: () => out.mime };
+      return out;
+    }
+  };
   g.ScriptApp = { getProjectTriggers: () => [], newTrigger: () => { throw new Error('No triggers in mock'); } };
 
   g.__mock = {
@@ -190,7 +199,7 @@
 
 /** Loads the real Apps Script server files (src/*.gs) into this window. */
 window.loadServerFiles = async function (base, extraUrls) {
-  const urls = ['Utils', 'Database', 'Config', 'Audit', 'Users', 'Commission', 'Schedules',
+  const urls = ['Api', 'Utils', 'Database', 'Config', 'Audit', 'Users', 'Commission', 'Schedules',
     'Sales', 'Packages', 'Reports', 'Code', 'Setup', 'Tests'].map((f) => base + f + '.gs').concat(extraUrls || []);
   const sources = await Promise.all(urls.map((u) =>
     fetch(u, { cache: 'no-store' }).then((r) => {

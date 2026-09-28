@@ -4,9 +4,10 @@ A web app for **ClickLounge Studio** that manages the **Monthly Sales Target &
 Commission Schedule** for contractual Sales & Marketing staff.
 
 - **Frontend:** HTML, CSS, JavaScript (single-page app, works on phones and desktops)
-- **Backend:** Google Apps Script (`doGet()` + server functions via `google.script.run`)
+- **Backend:** Google Apps Script (`doGet()` + permission-checked server functions)
 - **Database:** a private Google Sheet
-- **Hosting:** Google Apps Script web app — no paid services
+- **Hosting:** **GitHub Pages** (the pages, like the ClickLounge POS). The Apps Script web
+  app is the API. The same Apps Script URL can also serve the app directly. No paid services.
 
 Design details (architecture, schema, flows, wireframes, security) are in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Test cases and results are in
@@ -46,9 +47,13 @@ bonuses (₱1,000 … ₱7,000), ₱8,000 base, 90 hours and packages are only s
 ## 2. Architecture
 
 ```
-Browser (Index/CSS/JS.html) ──google.script.run(token, …)──► Apps Script (runs as owner)
-                                                            └─► private Google Sheet
+GitHub Pages (index.html + config.js) ──JSON-P: fn + token──► Apps Script /exec (runs as owner)
+                                                              └─► private Google Sheet
+Apps Script URL opened directly ──────google.script.run──────► same server functions
 ```
+
+- The GitHub Pages site talks to Apps Script the same way the POS does (JSON-P), which
+  works on every browser, including Safari on iPhone and iPad.
 
 - Every client-callable server function checks the session and role first.
 - All money maths is in one place: `calculateCommission_()` in `src/Commission.gs`.
@@ -92,10 +97,20 @@ The full column-by-column schema is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.
 3. **Do not share it.** Staff never need access to the sheet.
 
 ### 4.2 Open Apps Script and add the files
+**Easiest: paste the 3 bundled files from `dist/`.**
+1. In the sheet: **Extensions → Apps Script**.
+2. Replace everything in `Code.gs` with [dist/Code.gs](dist/Code.gs) and save.
+3. **＋ → HTML**, name it `Index`, and paste in [dist/Index.html](dist/Index.html). Save.
+4. **⚙ Project Settings → tick "Show appsscript.json manifest file in editor"**. Then
+   replace `appsscript.json` with [dist/appsscript.json](dist/appsscript.json) and save.
+
+`dist/` is generated from `src/` by `python3 tools/bundle.py`. Rebuild it after any code change.
+
+**Alternative: one file per source file.**
 1. In the sheet: **Extensions → Apps Script**.
 2. Delete the default contents of `Code.gs`.
 3. Create one file per item in `src/` with the **same name** and paste in its contents:
-   - Script files (**+ → Script**): `Code`, `Database`, `Config`, `Users`, `Schedules`,
+   - Script files (**+ → Script**): `Code`, `Api`, `Database`, `Config`, `Users`, `Schedules`,
      `Sales`, `Packages`, `Commission`, `Reports`, `Audit`, `Setup`, `Tests`, `Utils`
      (Apps Script adds `.gs` itself).
    - HTML files (**+ → HTML**): `Index`, `CSS`, `JS`.
@@ -116,9 +131,11 @@ Or use `clasp` instead of copy-pasting — see [section 5](#5-github-setup).
 3. When it finishes, the sheet has all ten tabs, sample packages, sample tiers, and your
    email in **Config → AdminEmails**.
 4. Reload the spreadsheet. A **ClickLounge** menu appears with:
-   *Set up / repair database*, *Load demo data*, *Run commission tests*,
-   *Install daily month-end check*.
-5. Optional: **ClickLounge → Install daily month-end check** moves ended Active schedules
+   *Set up / repair database*, *Set my access code*, *Load demo data*,
+   *Run commission tests*, *Install daily month-end check*.
+5. **ClickLounge → Set my access code.** On GitHub Pages everyone, including you, signs in
+   with email + access code. This sets yours.
+6. Optional: **ClickLounge → Install daily month-end check** moves ended Active schedules
    to Pending Approval every night. The dashboard also does this when an Admin opens it.
 
 ### 4.4 Demo data (optional)
@@ -136,18 +153,19 @@ Delete or deactivate the demo staff before going live (Staff page → Status: In
 
 ## 5. GitHub setup
 
-```bash
-cd clicklounge-sales-dashboard
-git add .
-git commit -m "ClickLounge Sales Dashboard v1.0.0"
-```
+The code lives at `github.com/hellotalentff-max/clicklounge-sales-dashboard`. Use
+**GitHub Desktop**: **File → Add Local Repository → clicklounge-sales-dashboard**, then
+**Commit** and **Push origin** after each change.
 
-```bash
-gh repo create clicklounge-sales-dashboard --private --source=. --push
-```
+What is in the repository:
 
-Keep the repository **private**. It contains no passwords or data, but there is no reason
-to publish studio internals.
+| Path | What |
+|---|---|
+| `src/` | Source code (edit here) |
+| `dist/` | Paste-ready Apps Script files (generated) |
+| `index.html`, `config.js`, `.nojekyll` | The GitHub Pages site (`index.html` is generated; `config.js` holds the API URL) |
+| `tools/bundle.py` | Regenerates `dist/` and `index.html` from `src/` |
+| `dev/`, `docs/` | Local tests/preview and documentation |
 
 ### Syncing code with `clasp` (optional, recommended)
 ```bash
@@ -171,35 +189,60 @@ version (section 6).
 
 ## 6. Deployment
 
+Two parts: the **Apps Script web app** (the API + database access) and the **GitHub
+Pages site** (what staff open).
+
+### 6.1 Deploy the Apps Script web app
 1. In the Apps Script editor: **Deploy → New deployment**.
 2. **Select type** (⚙) → **Web app**.
 3. Description: `v1.0.0`.
 4. **Execute as: Me** (the owner's account). Required: this lets the app read the private
    sheet without sharing it.
-5. **Who has access:** pick one (details below). For most studios using personal Gmail
-   accounts: **Anyone with a Google account**.
-6. **Deploy** → copy the **Web app URL** (`https://script.google.com/macros/s/…/exec`)
-   and share it with staff. Bookmark it or use *Add to Home Screen* on phones.
+5. **Who has access: Anyone.** Required for GitHub Pages (see below for why).
+6. **Deploy** → copy the **Web app URL** (`https://script.google.com/macros/s/…/exec`).
 
 To update later, open **Deploy → Manage deployments → ✎ Edit → Version: New version →
-Deploy**. The URL stays the same.
+Deploy**. The URL stays the same, so `config.js` does not need to change.
+
+### 6.2 Publish on GitHub Pages
+1. Paste the Web app URL into [`config.js`](config.js):
+   ```js
+   window.CL_API_URL = 'https://script.google.com/macros/s/AKfy…/exec';
+   ```
+   Commit and push it (GitHub Desktop → Commit → Push origin).
+2. Free GitHub accounts can only publish Pages from **public** repositories. On GitHub:
+   **Settings → General → Danger Zone → Change visibility → Public**. Your POS repository
+   works the same way. The code contains no passwords, pay or client data; all of that
+   stays in the private Sheet.
+3. **Settings → Pages → Build and deployment → Source: Deploy from a branch → Branch:
+   `main`, folder `/ (root)` → Save.**
+4. After about a minute the site is live at
+   **`https://hellotalentff-max.github.io/clicklounge-sales-dashboard/`**. That is the link
+   for staff (Add to Home Screen on phones).
+
+Workflow after a code change: edit `src/` → `python3 tools/bundle.py` → paste
+`dist/Code.gs` into Apps Script and deploy a new version if the server changed → commit
+and push (the Pages site updates itself).
 
 ### Who has access — security implications
 
-| Option | Who can open the URL | How users are identified | Recommendation |
-|---|---|---|---|
-| **Only myself** | Owner only | Google account | Testing only. |
-| **Anyone within *your-domain.com*** (Google Workspace) | Signed-in users of your Workspace domain | Automatically by Google email — no access codes needed | **Best** if everyone has a studio Workspace account. |
-| **Anyone with a Google account** | Anyone signed in to any Google account | Owner: automatically. Everyone else: email + **access code** (Google does not reveal personal Gmail addresses to a web app running as its owner) | **Recommended for personal Gmail accounts.** Google sign-in is required before the page loads, which adds a layer before the access code. |
-| **Anyone** | Anyone with the link, no Google sign-in | Email + access code only | Avoid. It works, but the access code is the only barrier. |
+| Option | Works with GitHub Pages? | Notes |
+|---|---|---|
+| **Anyone** | **Yes (required)** | The API URL answers any request, but every function except sign-in needs a valid session token, and every admin function checks the role. Sign-in needs email + access code; 5 wrong tries lock that email for 15 minutes. |
+| Anyone with a Google account | No | Requests from github.io don't reliably carry the Google login (Safari blocks it), so calls fail. Use only if staff open the Apps Script URL directly instead of GitHub Pages. |
+| Anyone within *your-domain.com* | No | Workspace only, with the same limitation. |
+| Only myself | No | Testing only. |
 
 Whichever you choose:
-- The spreadsheet stays private. The app reads it with the owner's permission, and users
-  only receive what their role allows.
-- Every server function checks the user's role, so even a staff member who opens the
-  browser console cannot read other staff data or change rules.
+- **The spreadsheet stays private.** The app reads it with the owner's permission, and
+  users only receive what their role allows.
+- **Access codes are the key.** Give each person their own code privately, use at least
+  8 characters for admins, and set departed staff to **Inactive**.
+- **Sessions are per device.** The session is stored in the browser for 6 hours. Pages on
+  `hellotalentff-max.github.io`, including your POS, share that browser storage, so only
+  publish your own trusted code there.
 - **Never choose "Execute as: User accessing the web app".** Every staff member would then
-  need edit access to the sheet, and could open it and see everyone's pay.
+  need access to the sheet and could see everyone's pay.
 
 ---
 
@@ -218,8 +261,9 @@ cannot lock itself out.
 
 ## 9. How to create the first Admin
 Running `setupDatabase()` makes the account that runs it the first Admin (it writes that
-email into **Config → AdminEmails** and creates the Users row). Open the web app URL with
-that same Google account and the Admin dashboard loads.
+email into **Config → AdminEmails** and creates the Users row). Then, in the spreadsheet,
+use **ClickLounge → Set my access code**, open the GitHub Pages link, and sign in with
+that email and code.
 
 To add a second Admin: Staff → Add staff → Role **Admin**, and set an access code if they
 use a personal Gmail account.
@@ -228,19 +272,18 @@ use a personal Gmail account.
 1. Admin adds the staff member on the **Staff** page (name, email, position, default base).
 2. Admin clicks **Access code**, sets a code of at least 6 characters, and gives it to the
    staff member in person or by private message.
-3. The staff member opens the web app URL, signs in to Google if asked, then enters their
-   **email + access code**. Workspace users on the same domain skip this step.
+3. The staff member opens the GitHub Pages link and enters their **email + access code**.
 4. The session lasts 6 hours on that device. They can change their code under
    **Change access code** in the menu.
 5. Five wrong attempts lock that email for 15 minutes, and the lock is logged.
 6. To remove access, set the staff member's **Status → Inactive**. Their history is kept.
 
-**Test staff login:** use the demo, or add yourself a second test account. Open the URL in a
-private window, sign in to Google with the test account, and enter its email + access code.
-You should see only **My Dashboard, My Sales, My Monthly Schedule, My Commission, History**.
+**Test staff login:** add a staff member with a real email you control, set their access
+code, then open the GitHub Pages link in a private window and sign in with it. You should
+see only **My Dashboard, My Sales, My Monthly Schedule, My Commission, History**.
 
-**Test Admin login:** open the URL with the owner account. You should see the full Admin
-menu (Dashboard … Settings) without entering a code.
+**Test Admin login:** sign in with the owner email and the code set from the spreadsheet
+menu. You should see the full Admin menu (Dashboard … Settings).
 
 ## 11. How to create monthly schedules
 1. **Monthly Schedules → New schedule**. The form is pre-filled from **Commission Rules →
@@ -306,11 +349,13 @@ services, so you can test without deploying:
 python3 -m http.server 8765 --bind 127.0.0.1
 ```
 
-- <http://localhost:8765/dev/tests.html>: 78 automated tests (commission unit tests +
-  end-to-end tests of security, validation, workflow, locking and history).
-- <http://localhost:8765/dev/preview.html>: the full app with demo data, signed in as Admin.
-- <http://localhost:8765/dev/preview.html?as=none>: the access-code login screen. Try
-  `staff.a@example.com` / `alpha-2026`.
+- <http://localhost:8765/dev/tests.html>: 86 automated tests (commission unit tests +
+  end-to-end tests of security, validation, workflow, locking, history and the Pages API).
+- <http://localhost:8765/dev/pages-preview.html>: the **GitHub Pages build** (`index.html`)
+  with demo data, going through the real JSON-P API. Sign in as `owner@clicklounge.test` /
+  `owner-2026` (Admin) or `staff.a@example.com` / `alpha-2026` (Staff).
+- <http://localhost:8765/dev/preview.html>: the Apps Script-hosted version, already signed
+  in as Admin (`?as=none` shows the access-code login).
 
 In Apps Script itself, run `runCommissionTests` (or **ClickLounge → Run commission
 tests**). It uses no sheet data and is safe on the live database.
@@ -320,8 +365,11 @@ tests**). It uses no sheet data and is safe on the live database.
 | Symptom | Fix |
 |---|---|
 | "The database is not set up yet" | Run `setupDatabase()` from the Apps Script editor. |
-| Staff sees "Please sign in" every time | Normal for personal Gmail accounts. They use email + access code. Sessions last 6 hours. |
-| Admin sees the login screen | The Google account you are signed in with is not in Config → AdminEmails, or the browser is using a different Google account. Try a private window. |
-| Changes to the code don't appear | Create a new deployment **version** (Deploy → Manage deployments → Edit → New version). |
+| "This page is not connected to the server yet" | `config.js` has no URL. Paste the Apps Script `/exec` URL and push. |
+| "Could not reach the server" on GitHub Pages | Check the Apps Script deployment's **Who has access** is **Anyone**, and that `config.js` holds the `/exec` URL (not `/dev`). |
+| Owner sees the login screen on GitHub Pages | Expected. Use ClickLounge → Set my access code in the sheet, then sign in. |
+| Staff must sign in again | Sessions last 6 hours per device. |
+| Server changes don't appear | Paste the new `dist/Code.gs`, then create a new deployment **version** (Deploy → Manage deployments → Edit → New version). |
+| Page changes don't appear | Run `python3 tools/bundle.py`, commit and push; GitHub Pages updates within a minute or two. |
 | "This schedule is Paid and locked" | Intended behaviour. Use **Unlock for Correction** with a reason. |
 | Dates look a day off | Make Config → Timezone, the spreadsheet timezone and `appsscript.json` all `Asia/Manila`. |
