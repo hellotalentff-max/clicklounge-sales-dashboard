@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Mock Apps Script server</title></head>
+<body>
+  <!-- Runs the real src/*.gs server code against the in-memory mock. Used by preview.html. -->
+  <script src="appsscript-mock.js"></script>
+  <script>
+    window.serverReady = (async () => {
+      await loadServerFiles('../src/');
+      const origLog = console.log;
+      console.log = () => {};
+      __mock.setActiveEmail(__mock.OWNER_EMAIL);
+      setupDatabase();
+      setupDemoData();
+      // Give the demo staff access codes so staff sign-in can be tried locally.
+      const token = bootstrap(null).data.token;
+      listUsers(token).data.forEach((u) => {
+        if (u.Email === 'staff.a@example.com') setUserAccessCode(token, u.UserID, 'alpha-2026');
+        if (u.Email === 'staff.b@example.com') setUserAccessCode(token, u.UserID, 'bravo-2026');
+      });
+      logout(token);
+      console.log = origLog;
+      const as = new URLSearchParams(parent.location.search).get('as');
+      // as=owner (default): Google identity visible. as=none: consumer account → access-code login.
+      __mock.setActiveEmail(as === 'none' ? '' : __mock.OWNER_EMAIL);
+    })();
+  </script>
+</body>
+</html>

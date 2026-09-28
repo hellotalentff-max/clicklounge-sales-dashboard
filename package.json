@@ -1,0 +1,17 @@
+{
+  "name": "clicklounge-sales-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ClickLounge Studio monthly sales target & commission schedule web app (Google Apps Script + Google Sheets).",
+  "scripts": {
+    "login": "clasp login",
+    "push": "clasp push",
+    "pull": "clasp pull",
+    "open": "clasp open",
+    "deploy": "clasp deploy --description \"ClickLounge Sales Dashboard\"",
+    "preview": "python3 -m http.server 8765 --bind 127.0.0.1"
+  },
+  "devDependencies": {
+    "@google/clasp": "^2.4.2"
+  }
+}

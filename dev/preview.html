@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ClickLounge — local preview</title>
+  <style>
+    html, body { margin: 0; height: 100%; }
+    #app { border: 0; width: 100%; height: 100%; display: block; }
+    #err { font: 14px system-ui; color: #b3261e; padding: 20px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <!--
+    Local preview of the real web app (src/Index.html + CSS.html + JS.html).
+    ?as=owner (default) → signed in as the owner/Admin via "Google identity"
+    ?as=none            → no Google identity: use access-code login
+                          (staff.a@example.com / alpha-2026, staff.b@example.com / bravo-2026)
+    Data is in memory and resets on reload.
+  -->
+  <iframe id="server" src="server.html" hidden></iframe>
+  <iframe id="app" title="ClickLounge Sales Dashboard"></iframe>
+  <div id="err"></div>
+  <script>
+    const serverFrame = document.getElementById('server');
+    const clone = (x) => (x === undefined ? null : JSON.parse(JSON.stringify(x)));
+
+    /** Called by the app frame's google.script.run shim. Mimics Apps Script serialization. */
+    window.__rpc = async (fn, args) => {
+      const w = serverFrame.contentWindow;
+      await w.serverReady;
+      if (!/^[A-Za-z]\w*$/.test(fn) || fn.endsWith('_') || typeof w[fn] !== 'function') {
+        throw new Error('Script function not found: ' + fn);
+      }
+      await new Promise((r) => setTimeout(r, 120)); // simulate network latency
+      return clone(w[fn].apply(null, clone(args)));
+    };
+
+    const shim = `<script>
+      (function () {
+        function runner(h) {
+          return new Proxy({}, { get: function (_, prop) {
+            if (prop === 'withSuccessHandler') return function (fn) { return runner(Object.assign({}, h, { ok: fn })); };
+            if (prop === 'withFailureHandler') return function (fn) { return runner(Object.assign({}, h, { err: fn })); };
+            if (prop === 'withUserObject') return function () { return runner(h); };
+            return function () {
+              var args = Array.prototype.slice.call(arguments);
+              parent.__rpc(prop, args).then(function (r) { h.ok && h.ok(r); }, function (e) { h.err && h.err(e); });
+            };
+          } });
+        }
+        window.google = { script: { run: runner({}) } };
+      })();
+    <\/script>`;
+
+    (async () => {
+      try {
+        const load = (f) => fetch('../src/' + f + '.html', { cache: 'no-store' }).then((r) => r.text());
+        const [index, css, js] = await Promise.all([load('Index'), load('CSS'), load('JS')]);
+        const html = index
+          .replace(/<\?!=\s*include_\('CSS'\);?\s*\?>/, () => css)
+          .replace(/<\?!=\s*include_\('JS'\);?\s*\?>/, () => js)
+          .replace('<head>', () => '<head>' + shim);
+        // A blob URL gives the app its own document URL (like Apps Script's iframe), so #/ routes stay inside it.
+        document.getElementById('app').src = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+      } catch (e) {
+        document.getElementById('err').textContent = 'Preview error: ' + e.message;
+      }
+    })();
+  </script>
+</body>
+</html>

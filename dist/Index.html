@@ -1,0 +1,1821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>ClickLounge Sales Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+  :root {
+    --bg: #f7f5f2;
+    --surface: #ffffff;
+    --surface-2: #fbfaf8;
+    --ink: #161616;
+    --ink-2: #3b3b3b;
+    --muted: #767168;
+    --line: #e7e2da;
+    --line-2: #f0ece6;
+    --gold: #b08d57;
+    --gold-ink: #8a6a3a;
+    --gold-soft: #f5eee2;
+    --side: #121212;
+    --side-ink: #d8d4cd;
+    --ok: #2e7d4f;
+    --ok-soft: #e7f3ec;
+    --warn: #a86b12;
+    --warn-soft: #fbf1e0;
+    --bad: #b3261e;
+    --bad-soft: #fbe9e7;
+    --info: #3d5a80;
+    --info-soft: #e8eef6;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --shadow: 0 1px 2px rgba(20, 16, 10, .04), 0 4px 16px rgba(20, 16, 10, .05);
+    --serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
+  [hidden] { display: none !important; }
+  a { color: var(--gold-ink); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -.01em; }
+  h1 { font-family: var(--serif); font-size: 30px; font-weight: 600; }
+  h2 { font-size: 17px; }
+  h3 { font-size: 15px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .right { text-align: right; }
+  .nowrap { white-space: nowrap; }
+
+  /* ---------- Boot & login ---------- */
+  .boot { min-height: 100vh; display: grid; place-items: center; text-align: center; }
+  .brand-mark { font-family: var(--serif); font-size: 28px; letter-spacing: .02em; }
+  .brand-mark span { color: var(--gold); }
+  .spinner { width: 28px; height: 28px; border: 3px solid var(--line); border-top-color: var(--gold); border-radius: 50%; animation: spin .8s linear infinite; margin: 18px auto 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .login-wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; background: linear-gradient(160deg, #141414 0%, #1f1c18 60%, #2b241a 100%); }
+  .login-card { width: 100%; max-width: 400px; background: var(--surface); border-radius: 20px; padding: 32px 28px; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+  .login-card .brand-mark { font-size: 26px; }
+  .login-card .eyebrow { margin-top: 6px; }
+  .login-card form { margin-top: 24px; display: grid; gap: 14px; }
+
+  /* ---------- Shell ---------- */
+  .shell { display: flex; min-height: 100vh; }
+  .sidebar { width: 252px; flex: 0 0 252px; background: var(--side); color: var(--side-ink); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
+  .sidebar .brand { padding: 26px 22px 18px; border-bottom: 1px solid rgba(255,255,255,.06); }
+  .sidebar .brand .brand-mark { color: #fff; font-size: 22px; }
+  .sidebar .brand .sub { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: #8d877d; margin-top: 4px; }
+  .nav { padding: 14px 10px; flex: 1; overflow-y: auto; }
+  .nav a { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin: 2px 0; border-radius: 10px; color: var(--side-ink); font-size: 14px; position: relative; }
+  .nav a:hover { background: rgba(255,255,255,.05); text-decoration: none; }
+  .nav a.active { background: rgba(176,141,87,.14); color: #fff; }
+  .nav a.active::before { content: ''; position: absolute; left: -10px; top: 8px; bottom: 8px; width: 3px; border-radius: 3px; background: var(--gold); }
+  .nav svg { width: 18px; height: 18px; flex: 0 0 18px; opacity: .85; }
+  .side-user { padding: 16px 18px 20px; border-top: 1px solid rgba(255,255,255,.06); font-size: 13px; }
+  .side-user .who { color: #fff; font-weight: 600; }
+  .side-user .role { color: var(--gold); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
+  .side-user .links { margin-top: 10px; display: flex; gap: 14px; flex-wrap: wrap; }
+  .side-user .links a { color: #b9b3a9; font-size: 12.5px; }
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .topbar { display: none; }
+  .view { padding: 32px 36px 64px; max-width: 1280px; width: 100%; margin: 0 auto; }
+  .scrim { display: none; }
+
+  /* ---------- Page header ---------- */
+  .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
+  .page-head .eyebrow { margin-bottom: 6px; }
+  .eyebrow { font-size: 11.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--gold-ink); font-weight: 600; }
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .toolbar select { width: auto; min-width: 190px; }
+  .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 18px; }
+  .filters .field { min-width: 150px; }
+
+  /* ---------- Cards & KPIs ---------- */
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px; }
+  .card + .card, .section + .section { margin-top: 18px; }
+  .card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .grid { display: grid; gap: 16px; }
+  .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .kpis.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); min-width: 0; }
+  .kpi .label { font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .kpi .value { font-size: 28px; font-weight: 600; margin-top: 6px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .kpi .hint { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+  .kpi.feature { background: var(--side); color: #fff; border-color: var(--side); }
+  .kpi.feature .label { color: #b9b3a9; }
+  .kpi.feature .value { color: #fff; font-size: 32px; }
+  .kpi.feature .hint { color: #b9b3a9; }
+  .kpi.gold { background: var(--gold-soft); border-color: #eadcc2; }
+  .kpi.wide { grid-column: span 2; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .dl { display: grid; grid-template-columns: 180px 1fr; gap: 8px 16px; font-size: 14px; }
+  .dl dt { color: var(--muted); }
+  .dl dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+
+  /* ---------- Progress ---------- */
+  .progress { height: 10px; background: var(--line-2); border-radius: 99px; overflow: hidden; margin-top: 12px; }
+  .progress > span { display: block; height: 100%; background: linear-gradient(90deg, #c9a66b, var(--gold)); border-radius: 99px; transition: width .6s ease; }
+  .progress.done > span { background: linear-gradient(90deg, #3f9a66, var(--ok)); }
+  .progress.sm { height: 6px; margin-top: 6px; }
+  .feature .progress { background: rgba(255,255,255,.12); }
+
+  /* ---------- Badges & alerts ---------- */
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; white-space: nowrap; background: var(--line-2); color: var(--ink-2); }
+  .badge.Draft { background: #efefef; color: #555; }
+  .badge.Active { background: var(--info-soft); color: var(--info); }
+  .badge.Pending { background: var(--warn-soft); color: var(--warn); }
+  .badge.Approved { background: var(--gold-soft); color: var(--gold-ink); }
+  .badge.Paid { background: var(--ok-soft); color: var(--ok); }
+  .badge.yes { background: var(--ok-soft); color: var(--ok); }
+  .badge.no { background: var(--bad-soft); color: var(--bad); }
+  .alert { border-radius: var(--radius-sm); padding: 12px 16px; font-size: 14px; display: flex; gap: 10px; align-items: flex-start; margin-bottom: 18px; border: 1px solid transparent; }
+  .alert.info { background: var(--info-soft); color: #263c5a; border-color: #d3deec; }
+  .alert.warn { background: var(--warn-soft); color: #6f4708; border-color: #f0dcb8; }
+  .alert.ok { background: var(--ok-soft); color: #1d5234; border-color: #cfe6d8; }
+  .alert.bad { background: var(--bad-soft); color: #7d1a14; border-color: #f2cbc7; }
+  .alert .grow { flex: 1; }
+
+  /* ---------- Buttons ---------- */
+  .btn { appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 10px; padding: 9px 16px; font: 600 14px var(--sans); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; transition: background .15s, border-color .15s, transform .05s; min-height: 40px; }
+  .btn:hover { background: var(--surface-2); border-color: #d6cfc4; }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled { opacity: .55; cursor: not-allowed; }
+  .btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .btn.primary:hover { background: #2c2c2c; }
+  .btn.gold { background: var(--gold); border-color: var(--gold); color: #fff; }
+  .btn.gold:hover { background: var(--gold-ink); }
+  .btn.danger { color: var(--bad); border-color: #efc9c5; }
+  .btn.danger.solid { background: var(--bad); color: #fff; border-color: var(--bad); }
+  .btn.ghost { border-color: transparent; background: transparent; }
+  .btn.sm { padding: 5px 11px; font-size: 13px; min-height: 32px; border-radius: 8px; }
+  .btn svg { width: 16px; height: 16px; }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .actions.one-line { flex-wrap: nowrap; justify-content: flex-end; }
+
+  /* ---------- Forms ---------- */
+  .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .field label, .label-sm { font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+  .field .help { font-size: 12px; color: var(--muted); }
+  input, select, textarea { font: 15px var(--sans); color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; width: 100%; min-height: 42px; }
+  textarea { min-height: 80px; resize: vertical; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(176,141,87,.18); }
+  input[readonly] { background: var(--surface-2); color: var(--muted); }
+  input[type=checkbox], input[type=radio] { width: 18px; height: 18px; min-height: 0; accent-color: var(--ink); padding: 0; }
+  .check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; cursor: pointer; }
+  .check input { margin-top: 2px; flex: 0 0 auto; }
+  .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .form-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .span-2 { grid-column: span 2; }
+  .span-all { grid-column: 1 / -1; }
+  .form-section { border-top: 1px solid var(--line-2); padding-top: 22px; margin-top: 22px; }
+  .form-section:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+  .form-section > h2 { margin-bottom: 4px; }
+  .form-section > p { margin: 0 0 16px; color: var(--muted); font-size: 13.5px; }
+  .segmented { display: inline-flex; background: var(--line-2); border-radius: 10px; padding: 3px; gap: 3px; flex-wrap: wrap; }
+  .segmented label { padding: 7px 14px; border-radius: 8px; font-size: 13.5px; font-weight: 600; cursor: pointer; color: var(--muted); }
+  .segmented input { display: none; }
+  .segmented label:has(input:checked) { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .form-error { background: var(--bad-soft); color: #7d1a14; border: 1px solid #f2cbc7; border-radius: 10px; padding: 10px 14px; font-size: 14px; }
+
+  /* Tier editor rows */
+  .tier-row { display: grid; grid-template-columns: 1fr 1fr 130px 1fr 40px; gap: 10px; align-items: end; padding: 10px 0; border-bottom: 1px dashed var(--line); }
+  .tier-row.bonus { grid-template-columns: 1fr 1fr 40px; }
+  .tier-row:last-child { border-bottom: 0; }
+  .tier-row .field label { font-size: 11.5px; }
+  .icon-btn { width: 40px; height: 42px; border: 1px solid var(--line); background: #fff; border-radius: 10px; cursor: pointer; display: grid; place-items: center; color: var(--muted); }
+  .icon-btn:hover { color: var(--bad); border-color: #efc9c5; }
+  .split-row { display: grid; grid-template-columns: 1fr 120px 120px 40px; gap: 10px; align-items: end; margin-bottom: 10px; }
+  .split-total { font-size: 13px; font-weight: 600; }
+
+  /* ---------- Tables → cards on mobile ---------- */
+  .table-wrap { overflow-x: auto; }
+  table.rtable { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .rtable th { text-align: left; font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 10px; border-bottom: 1px solid var(--line); white-space: nowrap; background: var(--surface); }
+  .rtable th.sortable { cursor: pointer; user-select: none; }
+  .rtable th.sortable:hover { color: var(--ink); }
+  .rtable th .arrow { color: var(--gold); margin-left: 4px; }
+  .rtable td { padding: 12px 10px; border-bottom: 1px solid var(--line-2); vertical-align: middle; }
+  .rtable tr:last-child td { border-bottom: 0; }
+  .rtable tr.clickable { cursor: pointer; }
+  .rtable tr.clickable:hover td { background: var(--surface-2); }
+  .rtable tr.highlight td { background: var(--gold-soft); }
+  .rtable tr.total td { font-weight: 700; border-top: 2px solid var(--line); background: var(--surface-2); }
+  .rtable .right, .rtable th.right { text-align: right; }
+  .cell-strong { font-weight: 600; }
+  .cell-sub { font-size: 12.5px; color: var(--muted); }
+  .empty { text-align: center; padding: 42px 16px; color: var(--muted); }
+  .empty .big { font-family: var(--serif); font-size: 22px; color: var(--ink); margin-bottom: 6px; }
+  .mobile-sort { display: none; }
+
+  /* ---------- Modal, confirm, toast ---------- */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(15, 12, 8, .55); display: flex; align-items: flex-start; justify-content: center; padding: 48px 16px; overflow-y: auto; z-index: 50; animation: fade .15s ease; }
+  .modal { background: var(--surface); border-radius: 18px; width: 100%; max-width: 560px; box-shadow: 0 30px 80px rgba(0,0,0,.3); animation: pop .18s ease; }
+  .modal.wide { max-width: 820px; }
+  .modal-head { padding: 20px 24px 0; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .modal-head h2 { font-family: var(--serif); font-size: 22px; }
+  .modal-body { padding: 18px 24px; display: grid; gap: 16px; }
+  .modal-foot { padding: 0 24px 22px; display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+  .close-x { border: 0; background: transparent; font-size: 26px; line-height: 1; cursor: pointer; color: var(--muted); padding: 4px 8px; }
+  @keyframes fade { from { opacity: 0; } }
+  @keyframes pop { from { transform: translateY(8px) scale(.98); opacity: 0; } }
+  .toasts { position: fixed; right: 20px; bottom: 20px; display: grid; gap: 10px; z-index: 80; max-width: calc(100vw - 32px); }
+  .toast { background: var(--ink); color: #fff; padding: 12px 18px; border-radius: 12px; font-size: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.25); display: flex; gap: 10px; align-items: center; animation: pop .2s ease; }
+  .toast::before { content: '✓'; color: #8fd3a9; font-weight: 700; }
+  .toast.error { background: var(--bad); }
+  .toast.error::before { content: '!'; color: #fff; }
+
+  /* ---------- Statement (printable) ---------- */
+  .statement { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 44px 48px; max-width: 860px; margin: 0 auto; position: relative; box-shadow: var(--shadow); }
+  .statement .st-head { text-align: center; border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 24px; }
+  .statement .st-studio { font-family: var(--serif); font-size: 26px; letter-spacing: .18em; text-transform: uppercase; }
+  .statement .st-title { font-size: 12.5px; letter-spacing: .22em; text-transform: uppercase; color: var(--gold-ink); margin-top: 6px; font-weight: 600; }
+  .statement h3 { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 26px 0 10px; }
+  .st-total td { font-size: 18px; font-weight: 700; border-top: 2px solid var(--ink) !important; }
+  .watermark { position: absolute; top: 16px; right: 18px; font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--warn); border: 1.5px solid var(--warn); padding: 3px 9px; border-radius: 6px; }
+  .watermark.final { color: var(--ok); border-color: var(--ok); }
+  .statement .rtable td, .statement .rtable th { padding: 8px 10px; }
+  .statement .sig { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 48px; }
+  .statement .sig div { border-top: 1px solid var(--ink); padding-top: 6px; font-size: 12px; color: var(--muted); }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 1100px) {
+    .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 900px) {
+    .sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: 40; transform: translateX(-100%); transition: transform .22s ease; }
+    body.nav-open .sidebar { transform: none; box-shadow: 0 0 40px rgba(0,0,0,.4); }
+    body.nav-open .scrim { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 30; }
+    .topbar { display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 20; background: rgba(247,245,242,.92); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); padding: 10px 16px; border-bottom: 1px solid var(--line); }
+    .topbar .brand-mark { font-size: 18px; }
+    .topbar .menu-btn { border: 1px solid var(--line); background: #fff; border-radius: 10px; width: 42px; height: 42px; display: grid; place-items: center; cursor: pointer; }
+    .view { padding: 22px 16px 56px; }
+    .two-col { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 760px) {
+    h1 { font-size: 25px; }
+    .kpis, .kpis.three { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .kpi { padding: 14px 15px; }
+    .kpi .value { font-size: 21px; }
+    .kpi.feature .value { font-size: 26px; }
+    .kpi.wide { grid-column: 1 / -1; }
+    .form-grid, .form-grid.two { grid-template-columns: 1fr; }
+    .span-2 { grid-column: auto; }
+    .dl { grid-template-columns: 1fr; gap: 2px; }
+    .dl dd { margin-bottom: 10px; }
+    .card { padding: 16px; }
+    .filters .field { min-width: 0; flex: 1 1 140px; }
+    .tier-row { grid-template-columns: 1fr 1fr; }
+    .tier-row .icon-btn { width: 100%; }
+    .tier-row.bonus { grid-template-columns: 1fr 1fr 40px; }
+    .split-row { grid-template-columns: 1fr 90px 40px; }
+    .split-row .credit { grid-column: 1 / -1; order: 5; }
+    .mobile-sort { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+    /* Tables become stacked cards */
+    table.rtable, .rtable tbody, .rtable tr, .rtable td { display: block; width: 100%; }
+    .rtable thead { display: none; }
+    .rtable tr { border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px; padding: 6px 14px; background: #fff; }
+    .rtable td { display: flex; justify-content: space-between; gap: 14px; padding: 8px 0; border-bottom: 1px solid var(--line-2); text-align: right; }
+    .rtable td:last-child { border-bottom: 0; }
+    .rtable td::before { content: attr(data-label); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; text-align: left; flex: 0 0 auto; padding-top: 2px; }
+    .rtable td[data-label=""]::before { display: none; }
+    .rtable td.primary-cell { font-size: 16px; justify-content: flex-start; text-align: left; }
+    .rtable td .actions { justify-content: flex-end; flex-wrap: wrap; }
+    .rtable tr.total { background: var(--surface-2); }
+    .table-wrap { overflow: visible; }
+    /* Short two-column tables stay tables */
+    table.rtable.keep { display: table; }
+    .rtable.keep thead { display: table-header-group; }
+    .rtable.keep tbody { display: table-row-group; }
+    .rtable.keep tr { display: table-row; border: 0; padding: 0; margin: 0; background: none; }
+    .rtable.keep td { display: table-cell; text-align: left; padding: 9px 6px; border-bottom: 1px solid var(--line-2); }
+    .rtable.keep td.right { text-align: right; }
+    .rtable.keep td::before { display: none; }
+    .rtable.keep tr.highlight td { background: var(--gold-soft); }
+    .statement .watermark { position: static; display: inline-block; margin-bottom: 14px; }
+    .statement { padding: 26px 18px; }
+    .statement .st-studio { font-size: 19px; }
+    .modal-backdrop { padding: 16px 10px; }
+    .modal-body, .modal-head, .modal-foot { padding-left: 18px; padding-right: 18px; }
+    .page-head { align-items: flex-start; }
+  }
+
+  /* ---------- Print ---------- */
+  @media print {
+    body { background: #fff; }
+    .sidebar, .topbar, .no-print, .toasts, .scrim { display: none !important; }
+    .view { padding: 0; max-width: none; }
+    .statement, .card { border: 0; box-shadow: none; padding: 0; }
+    .print-only { display: block !important; }
+    table.rtable { display: table; }
+    .rtable thead { display: table-header-group; }
+    .rtable tr { display: table-row; border: 0; padding: 0; margin: 0; }
+    .rtable td { display: table-cell; text-align: inherit; }
+    .rtable td::before { display: none; }
+    .kpi { box-shadow: none; }
+  }
+  .print-only { display: none; }
+</style>
+
+</head>
+<body>
+  <!-- Loading -->
+  <div id="boot" class="boot">
+    <div>
+      <div class="brand-mark">Click<span>Lounge</span></div>
+      <div class="eyebrow" style="margin-top:6px">Sales Dashboard</div>
+      <div class="spinner"></div>
+      <p id="boot-msg" class="muted small" style="max-width:420px;margin:18px auto 0"></p>
+    </div>
+  </div>
+
+  <!-- Sign in (access code) -->
+  <section id="login" class="login-wrap" hidden>
+    <div class="login-card">
+      <div class="brand-mark">Click<span>Lounge</span></div>
+      <div class="eyebrow" id="login-studio">Sales Dashboard</div>
+      <p class="muted small" id="login-note" style="margin:14px 0 0">Sign in with your work email and the access code from the Admin.</p>
+      <form id="login-form" autocomplete="on">
+        <div class="field">
+          <label for="login-email">Email</label>
+          <input id="login-email" name="email" type="email" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label for="login-code">Access code</label>
+          <input id="login-code" name="code" type="password" autocomplete="current-password" required>
+        </div>
+        <div id="login-error" class="form-error" hidden></div>
+        <button class="btn primary" type="submit" style="justify-content:center">Sign in</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- App shell -->
+  <div id="shell" class="shell" hidden>
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark">Click<span>Lounge</span></div>
+        <div class="sub" id="side-studio">Sales Dashboard</div>
+      </div>
+      <nav class="nav" id="nav" aria-label="Main"></nav>
+      <div class="side-user">
+        <div class="who" id="side-name"></div>
+        <div class="role" id="side-role"></div>
+        <div class="links">
+          <a href="#" id="change-code-link">Change access code</a>
+          <a href="#" id="logout-link">Sign out</a>
+        </div>
+      </div>
+    </aside>
+    <div class="scrim" id="scrim"></div>
+    <div class="main">
+      <header class="topbar">
+        <button class="menu-btn" id="menu-btn" aria-label="Open menu">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="brand-mark">Click<span>Lounge</span></div>
+      </header>
+      <main class="view" id="view"></main>
+    </div>
+  </div>
+
+  <div id="modal-root"></div>
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <script>
+/*
+ * ClickLounge Sales Dashboard — frontend.
+ * Displays data only: every amount shown comes from the server's
+ * calculateCommission_(). No commission logic lives in the browser.
+ */
+(function () {
+  'use strict';
+
+  /* ================================================================ */
+  /* State & storage                                                  */
+  /* ================================================================ */
+  const S = { token: null, user: null, config: {}, users: null, packages: null, dashSort: { key: 'staffName', dir: 1 } };
+  const TOKEN_KEY = 'clicklounge.session';
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage unavailable */ } },
+    del(k) { try { localStorage.removeItem(k); } catch (e) { /* storage unavailable */ } }
+  };
+  const $ = (sel, root) => (root || document).querySelector(sel);
+  const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
+
+  /* ================================================================ */
+  /* Server calls                                                     */
+  /* ================================================================ */
+  function run(fn, args) {
+    return new Promise((resolve, reject) => {
+      const runner = google.script.run
+        .withSuccessHandler((res) => {
+          if (!res) return reject(new Error('No response from the server. Please try again.'));
+          if (res.success) return resolve(res);
+          if (res.code === 'AUTH') signedOut(res.error);
+          const e = new Error(res.error || 'Request failed.');
+          e.code = res.code;
+          reject(e);
+        })
+        .withFailureHandler((err) => reject(new Error((err && err.message) || String(err))));
+      runner[fn].apply(runner, args);
+    });
+  }
+  /** Calls a server function with the session token; resolves the full response. */
+  const api = (fn, ...args) => run(fn, [S.token].concat(args));
+  /** Same, resolving only the data. */
+  const get = (fn, ...args) => api(fn, ...args).then((r) => r.data);
+
+  /* ================================================================ */
+  /* Formatting                                                       */
+  /* ================================================================ */
+  const esc = (s) => String(s === null || s === undefined ? '' : s)
+    .replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  function money(n) {
+    if (n === null || n === undefined || n === '') return '—';
+    const v = Number(n);
+    const abs = Math.abs(v);
+    const frac = Math.round(abs * 100) % 100 !== 0;
+    return (v < 0 ? '-' : '') + (S.config.currencySymbol || '₱') +
+      abs.toLocaleString('en-US', { minimumFractionDigits: frac ? 2 : 0, maximumFractionDigits: 2 });
+  }
+  const pct = (n) => (n === null || n === undefined ? '—' : (Math.round(n * 10) / 10).toLocaleString('en-US') + '%');
+  const qty = (n) => (n === null || n === undefined || n === '' ? '—' : (Math.round(Number(n) * 100) / 100).toLocaleString('en-US'));
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  function monthLabel(m) {
+    if (!m || !/^\d{4}-\d{2}$/.test(m)) return m || '';
+    const [y, mo] = m.split('-').map(Number);
+    return MONTHS[mo - 1] + ' ' + y;
+  }
+  function dateLabel(d) {
+    if (!d || !/^\d{4}-\d{2}-\d{2}/.test(d)) return d || '';
+    const [y, m, day] = d.slice(0, 10).split('-').map(Number);
+    return MONTHS[m - 1].slice(0, 3) + ' ' + day + ', ' + y;
+  }
+  const shortDate = (d) => (d && /^\d{4}-\d{2}-\d{2}/.test(d) ? MONTHS[Number(d.slice(5, 7)) - 1].slice(0, 3) + ' ' + Number(d.slice(8, 10)) : '');
+  function addMonths(m, n) {
+    const [y, mo] = m.split('-').map(Number);
+    const idx = y * 12 + (mo - 1) + n;
+    return Math.floor(idx / 12) + '-' + String((idx % 12) + 1).padStart(2, '0');
+  }
+  function monthRange(extra) {
+    const cur = S.config.currentMonth;
+    const set = new Set(extra || []);
+    for (let i = -12; i <= 6; i++) set.add(addMonths(cur, i));
+    return Array.from(set).filter(Boolean).sort().reverse();
+  }
+  function monthOptions(selected, list, allLabel) {
+    return (allLabel !== undefined ? '<option value="">' + esc(allLabel) + '</option>' : '') +
+      list.map((m) => '<option value="' + m + '"' + (m === selected ? ' selected' : '') + '>' + monthLabel(m) + '</option>').join('');
+  }
+  const statusClass = (s) => (s === 'Pending Approval' ? 'Pending' : s);
+  const badge = (s) => '<span class="badge ' + esc(statusClass(s)) + '">' + esc(s) + '</span>';
+  const yesNo = (b, yes, no) => '<span class="badge ' + (b ? 'yes' : 'no') + '">' + (b ? (yes || 'Yes') : (no || 'No')) + '</span>';
+  const progressBar = (p, cls) => '<div class="progress ' + (cls || '') + (p >= 100 ? ' done' : '') + '"><span style="width:' +
+    Math.max(0, Math.min(100, Number(p) || 0)) + '%"></span></div>';
+
+  const ICONS = {
+    grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+    receipt: 'M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6',
+    users: 'M16 19v-1a4 4 0 00-4-4H7a4 4 0 00-4 4v1M9.5 10a3.5 3.5 0 100-7 3.5 3.5 0 000 7zM21 19v-1a4 4 0 00-3-3.87M16 3.13a3.5 3.5 0 010 6.75',
+    calendar: 'M4 6h16v14H4zM4 10h16M9 3v4M15 3v4',
+    percent: 'M19 5L5 19M7.5 9a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM16.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z',
+    box: 'M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8',
+    chart: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
+    shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
+    gear: 'M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z',
+    clock: 'M12 21a9 9 0 100-18 9 9 0 000 18zM12 7v5l3 2',
+    plus: 'M12 5v14M5 12h14',
+    trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
+    print: 'M6 9V3h12v6M6 18H4v-6h16v6h-2M6 14h12v7H6z',
+    download: 'M12 3v12M7 10l5 5 5-5M5 21h14'
+  };
+  const icon = (name) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="' + ICONS[name] + '"/></svg>';
+
+  /* ================================================================ */
+  /* UI primitives: toast, modal, confirm, tables                     */
+  /* ================================================================ */
+  function toast(msg, type) {
+    const el = document.createElement('div');
+    el.className = 'toast' + (type === 'error' ? ' error' : '');
+    el.textContent = msg;
+    $('#toasts').appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; }, type === 'error' ? 5200 : 2800);
+    setTimeout(() => el.remove(), type === 'error' ? 5600 : 3200);
+  }
+
+  /**
+   * Opens a modal with a form. onSubmit(values, form) may return a promise;
+   * a rejected promise shows its message inside the modal.
+   */
+  function modal(opts) {
+    const root = $('#modal-root');
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-backdrop';
+    wrap.innerHTML = '<form class="modal' + (opts.wide ? ' wide' : '') + '" novalidate>' +
+      '<div class="modal-head"><h2>' + esc(opts.title) + '</h2><button type="button" class="close-x" aria-label="Close">×</button></div>' +
+      '<div class="modal-body">' + opts.body + '<div class="form-error" hidden></div></div>' +
+      '<div class="modal-foot">' + (opts.hideCancel ? '' : '<button type="button" class="btn cancel">' + esc(opts.cancelLabel || 'Cancel') + '</button>') +
+      (opts.onSubmit ? '<button type="submit" class="btn ' + (opts.danger ? 'danger solid' : 'primary') + '">' + esc(opts.submitLabel || 'Save') + '</button>' : '') +
+      '</div></form>';
+    root.appendChild(wrap);
+    const form = $('form', wrap);
+    const errBox = $('.form-error', wrap);
+    const close = () => { wrap.remove(); document.removeEventListener('keydown', onKey); if (opts.onClose) opts.onClose(); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+    $('.close-x', wrap).onclick = close;
+    const cancel = $('.cancel', wrap);
+    if (cancel) cancel.onclick = close;
+    wrap.addEventListener('mousedown', (e) => { if (e.target === wrap) close(); });
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!opts.onSubmit) return close();
+      errBox.hidden = true;
+      const btn = $('button[type=submit]', form);
+      btn.disabled = true;
+      Promise.resolve()
+        .then(() => opts.onSubmit(formValues(form), form))
+        .then((keepOpen) => { if (keepOpen !== true) close(); })
+        .catch((err) => {
+          errBox.textContent = err.message;
+          errBox.hidden = false;
+          errBox.scrollIntoView({ block: 'nearest' });
+        })
+        .finally(() => { btn.disabled = false; });
+    });
+    const first = $('input:not([type=hidden]):not([readonly]), select, textarea', form);
+    if (first && !opts.noAutofocus) setTimeout(() => first.focus(), 30);
+    if (opts.onOpen) opts.onOpen(form);
+    return { close, form };
+  }
+
+  /** Confirmation dialog. Resolves { reason } when confirmed, null when cancelled. */
+  function confirmBox(opts) {
+    return new Promise((resolve) => {
+      let done = false;
+      modal({
+        title: opts.title || 'Please confirm',
+        body: '<p style="margin:0">' + opts.message + '</p>' +
+          (opts.reasonLabel ? '<div class="field"><label>' + esc(opts.reasonLabel) + '</label><textarea name="reason" required></textarea></div>' : ''),
+        submitLabel: opts.confirmLabel || 'Confirm',
+        danger: !!opts.danger,
+        noAutofocus: !opts.reasonLabel,
+        onSubmit: (v) => {
+          if (opts.reasonLabel && String(v.reason || '').trim().length < 5) throw new Error('Please enter a reason (at least 5 characters).');
+          done = true;
+          resolve({ reason: v.reason || '' });
+        },
+        onClose: () => { if (!done) resolve(null); }
+      });
+    });
+  }
+
+  /** Reads named form controls into an object (checkboxes → booleans). */
+  function formValues(form) {
+    const out = {};
+    $$('[name]', form).forEach((el) => {
+      if (el.closest('[data-skip]')) return;
+      if (el.type === 'checkbox') out[el.name] = el.checked;
+      else if (el.type === 'radio') { if (el.checked) out[el.name] = el.value; }
+      else out[el.name] = el.value;
+    });
+    return out;
+  }
+
+  /**
+   * Responsive table. columns: [{ key, label, right, render(row), sortable, primary }].
+   * On phones each row becomes a card (labels come from data-label).
+   */
+  function table(columns, rows, opts) {
+    opts = opts || {};
+    if (!rows.length) return '<div class="empty"><div class="big">' + esc(opts.emptyTitle || 'Nothing here yet') + '</div>' + (opts.empty || '') + '</div>';
+    const sort = opts.sort;
+    const head = '<thead><tr>' + columns.map((c) => {
+      const active = sort && sort.key === c.key;
+      return '<th class="' + (c.right ? 'right ' : '') + (c.sortable ? 'sortable' : '') + '" ' + (c.sortable ? 'data-sort="' + c.key + '"' : '') + '>' +
+        esc(c.label) + (active ? '<span class="arrow">' + (sort.dir > 0 ? '▲' : '▼') + '</span>' : '') + '</th>';
+    }).join('') + '</tr></thead>';
+    const body = rows.map((r) => '<tr class="' + (opts.rowClass ? opts.rowClass(r) : '') + (opts.rowLink ? ' clickable' : '') + '"' +
+      (opts.rowLink ? ' data-href="' + esc(opts.rowLink(r)) + '"' : '') + '>' +
+      columns.map((c) => '<td data-label="' + esc(c.primary ? '' : c.label) + '" class="' + (c.right ? 'right num ' : '') + (c.primary ? 'primary-cell' : '') + '">' +
+        (c.render ? c.render(r) : esc(r[c.key])) + '</td>').join('') + '</tr>').join('');
+    const foot = opts.footer ? '<tr class="total">' + columns.map((c) => '<td data-label="' + esc(c.primary ? '' : c.label) + '" class="' + (c.right ? 'right num' : '') + '">' + (opts.footer[c.key] !== undefined ? opts.footer[c.key] : '') + '</td>').join('') + '</tr>' : '';
+    return '<div class="table-wrap"><table class="rtable' + (opts.keep ? ' keep' : '') + '">' + head + '<tbody>' + body + foot + '</tbody></table></div>';
+  }
+
+  /** Wires clickable rows (ignores clicks on buttons/links inside). */
+  function bindRowLinks(root) {
+    $$('tr[data-href]', root).forEach((tr) => {
+      tr.addEventListener('click', (e) => {
+        if (e.target.closest('button, a, input, select')) return;
+        location.hash = tr.getAttribute('data-href');
+      });
+    });
+  }
+
+  function setView(html) {
+    const v = $('#view');
+    v.innerHTML = html;
+    return v;
+  }
+  const loadingHtml = '<div class="empty"><div class="spinner"></div></div>';
+  function errorView(err) {
+    setView('<div class="alert bad"><div class="grow"><strong>Could not load this page.</strong><br>' + esc(err.message) +
+      '</div></div><button class="btn" onclick="location.reload()">Reload</button>');
+  }
+  function pageHead(eyebrow, title, right) {
+    return '<div class="page-head"><div><div class="eyebrow">' + esc(eyebrow) + '</div><h1>' + esc(title) + '</h1></div>' +
+      '<div class="toolbar no-print">' + (right || '') + '</div></div>';
+  }
+  function kpi(label, value, hint, cls) {
+    return '<div class="kpi ' + (cls || '') + '"><div class="label">' + esc(label) + '</div><div class="value">' + value + '</div>' +
+      (hint ? '<div class="hint">' + hint + '</div>' : '') + '</div>';
+  }
+  function withBusy(btn, promise) {
+    if (btn) btn.disabled = true;
+    return promise.finally(() => { if (btn) btn.disabled = false; });
+  }
+  function fail(err) { toast(err.message, 'error'); }
+
+  /* ================================================================ */
+  /* Cached lookups                                                   */
+  /* ================================================================ */
+  async function loadUsers(force) {
+    if (!S.users || force) S.users = await get('listUsers');
+    return S.users;
+  }
+  async function loadPackages(force) {
+    if (!S.packages || force) S.packages = await get('listPackages', true);
+    return S.packages;
+  }
+  const staffOptions = (users, selected, includeIds) => users
+    .filter((u) => u.Status === 'Active' || (includeIds || []).indexOf(u.UserID) !== -1)
+    .map((u) => '<option value="' + esc(u.UserID) + '"' + (u.UserID === selected ? ' selected' : '') + '>' + esc(u.Name) +
+      (u.Status !== 'Active' ? ' (inactive)' : '') + '</option>').join('');
+
+  /* ================================================================ */
+  /* Routing & shell                                                  */
+  /* ================================================================ */
+  const ADMIN_NAV = [['dashboard', 'Dashboard', 'grid'], ['sales', 'Sales', 'receipt'], ['staff', 'Staff', 'users'],
+    ['schedules', 'Monthly Schedules', 'calendar'], ['rules', 'Commission Rules', 'percent'], ['packages', 'Packages', 'box'],
+    ['reports', 'Reports', 'chart'], ['audit', 'Audit Log', 'shield'], ['settings', 'Settings', 'gear']];
+  const STAFF_NAV = [['home', 'My Dashboard', 'grid'], ['my-sales', 'My Sales', 'receipt'], ['my-schedule', 'My Monthly Schedule', 'calendar'],
+    ['my-commission', 'My Commission', 'percent'], ['history', 'History', 'clock']];
+
+  const ADMIN_ROUTES = {
+    dashboard: viewAdminDashboard, sales: viewSales, staff: viewStaff, schedules: viewSchedules,
+    schedule: viewScheduleDetail, 'schedule-edit': viewScheduleEdit, rules: viewRules, packages: viewPackages,
+    reports: viewReports, audit: viewAudit, settings: viewSettings, statement: viewStatement
+  };
+  const STAFF_ROUTES = {
+    home: viewMyDashboard, 'my-sales': viewMySales, 'my-schedule': viewMySchedule,
+    'my-commission': viewMyCommission, history: viewHistory, statement: viewStatement
+  };
+  const NAV_PARENT = { schedule: 'schedules', 'schedule-edit': 'schedules', statement: null };
+
+  function renderShell() {
+    const nav = S.user.isAdmin ? ADMIN_NAV : STAFF_NAV;
+    $('#nav').innerHTML = nav.map((n) => '<a href="#/' + n[0] + '" data-route="' + n[0] + '">' + icon(n[2]) + '<span>' + esc(n[1]) + '</span></a>').join('');
+    $('#side-name').textContent = S.user.name;
+    $('#side-role').textContent = S.user.isAdmin ? 'Admin' : (S.user.position || 'Staff');
+    $('#side-studio').textContent = S.config.studioName || 'Sales Dashboard';
+    document.title = (S.config.studioName || 'ClickLounge') + ' · Sales Dashboard';
+    $('#boot').hidden = true;
+    $('#login').hidden = true;
+    $('#shell').hidden = false;
+  }
+
+  function route() {
+    if (!S.user) return;
+    const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
+    const routes = S.user.isAdmin ? ADMIN_ROUTES : STAFF_ROUTES;
+    const home = S.user.isAdmin ? 'dashboard' : 'home';
+    let name = parts[0] || home;
+    if (!routes[name]) name = home;
+    const navKey = NAV_PARENT[name] !== undefined ? NAV_PARENT[name] : name;
+    $$('#nav a').forEach((a) => a.classList.toggle('active', a.getAttribute('data-route') === navKey));
+    document.body.classList.remove('nav-open');
+    setView(loadingHtml);
+    window.scrollTo(0, 0);
+    Promise.resolve().then(() => routes[name].apply(null, parts.slice(1))).catch(errorView);
+  }
+  const go = (hash) => { if (location.hash === '#/' + hash) route(); else location.hash = '#/' + hash; };
+
+  /* ================================================================ */
+  /* Auth                                                             */
+  /* ================================================================ */
+  function showLogin(message) {
+    $('#boot').hidden = true;
+    $('#shell').hidden = true;
+    $('#login').hidden = false;
+    $('#login-studio').textContent = S.config.studioName || 'Sales Dashboard';
+    const err = $('#login-error');
+    err.hidden = !message;
+    err.textContent = message || '';
+  }
+  function signedOut(message) {
+    S.token = null;
+    S.user = null;
+    store.del(TOKEN_KEY);
+    $$('.modal-backdrop').forEach((m) => m.remove());
+    showLogin(message);
+  }
+  function startApp(data) {
+    S.token = data.token;
+    S.user = data.user;
+    S.config = data.config || S.config;
+    store.set(TOKEN_KEY, S.token);
+    renderShell();
+    route();
+  }
+
+  $('#login-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const btn = $('button[type=submit]', e.target);
+    const email = $('#login-email').value.trim();
+    const code = $('#login-code').value;
+    $('#login-error').hidden = true;
+    withBusy(btn, run('login', [email, code]))
+      .then((res) => { $('#login-code').value = ''; startApp(res.data); })
+      .catch((err) => { const el = $('#login-error'); el.textContent = err.message; el.hidden = false; });
+  });
+  $('#logout-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    const token = S.token;
+    signedOut('');
+    run('logout', [token]).catch(() => {});
+  });
+  $('#change-code-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    modal({
+      title: 'Change access code',
+      body: '<p class="muted small" style="margin:0">Your access code lets you sign in when Google does not share your email with the app (for example on personal Gmail accounts).</p>' +
+        '<div class="field"><label>Current access code</label><input type="password" name="current" autocomplete="current-password"><span class="help">Leave blank if you have never had one.</span></div>' +
+        '<div class="field"><label>New access code</label><input type="password" name="next" autocomplete="new-password" minlength="6"></div>' +
+        '<div class="field"><label>Repeat new access code</label><input type="password" name="repeat" autocomplete="new-password"></div>',
+      submitLabel: 'Update code',
+      onSubmit: (v) => {
+        if (v.next !== v.repeat) throw new Error('The new codes do not match.');
+        return api('changeMyAccessCode', v.current, v.next).then((r) => toast(r.message));
+      }
+    });
+  });
+  $('#menu-btn').addEventListener('click', () => document.body.classList.toggle('nav-open'));
+  $('#scrim').addEventListener('click', () => document.body.classList.remove('nav-open'));
+  window.addEventListener('hashchange', route);
+
+  /* ================================================================ */
+  /* Shared renderers (schedule details, tiers, statement)            */
+  /* ================================================================ */
+  function tierRangeLabel(t) {
+    return t.MaxSales === null || t.MaxSales === '' || t.MaxSales === undefined
+      ? money(t.MinSales) + ' and above' : money(t.MinSales) + ' – ' + money(t.MaxSales);
+  }
+  function tiersTable(tiers, calc) {
+    const sorted = tiers.slice().sort((a, b) => a.MinSales - b.MinSales);
+    return table([
+      { key: 'range', label: 'Sales range', render: tierRangeLabel },
+      { key: 'rate', label: 'Commission', right: true, render: (t) => t.CommissionType === 'FIXED' ? money(t.Rate) + ' fixed' : pct(t.Rate) + ' of sales' }
+    ], sorted, {
+      emptyTitle: 'No commission tiers',
+      keep: true,
+      rowClass: (t) => (calc && sorted.indexOf(t) === calc.commissionTierIndex ? 'highlight' : '')
+    });
+  }
+  function bonusTable(bonusTiers, calc) {
+    const sorted = bonusTiers.slice().sort((a, b) => a.MinPackages - b.MinPackages);
+    const reachedIdx = calc ? sorted.map((b, i) => (calc.packageCount >= b.MinPackages ? i : -1)).filter((i) => i >= 0) : [];
+    const top = reachedIdx.length ? reachedIdx[reachedIdx.length - 1] : -1;
+    return table([
+      { key: 'MinPackages', label: 'Packages sold', render: (b) => qty(b.MinPackages) + '+ packages' },
+      { key: 'BonusAmount', label: 'Bonus', right: true, render: (b) => money(b.BonusAmount) }
+    ], sorted, {
+      emptyTitle: 'No bonus tiers this month',
+      keep: true,
+      rowClass: (b) => {
+        const i = sorted.indexOf(b);
+        if (!calc) return '';
+        return (calc.bonusStructure === 'CUMULATIVE' ? reachedIdx.indexOf(i) !== -1 : i === top) ? 'highlight' : '';
+      }
+    });
+  }
+  const STRUCTURE_LABEL = {
+    TIERED_WHOLE: 'The rate of the tier reached applies to all sales',
+    TIERED_PROGRESSIVE: 'Progressive: each rate applies only to sales within its tier'
+  };
+  const BONUS_LABEL = { HIGHEST: 'Highest applicable bonus only', CUMULATIVE: 'Cumulative: all reached bonuses are added' };
+
+  /** KPI cards for one schedule's calculation (used by admin & staff). */
+  function calcCards(c, forStaff) {
+    const my = forStaff ? 'My ' : '';
+    const remaining = c.targetExceeded
+      ? kpi('Target exceeded', '+' + money(c.amountAboveTarget), 'Above the ' + money(c.salesTarget) + ' target', 'gold')
+      : c.targetReached ? kpi('Target reached', money(0), 'Sales target met', 'gold')
+        : kpi('Sales remaining', money(c.remainingSales), 'To reach ' + money(c.salesTarget));
+    const next = [];
+    if (c.nextCommissionTier) {
+      next.push(money(c.nextCommissionTier.salesNeeded) + ' more sales to reach the ' +
+        (c.nextCommissionTier.type === 'FIXED' ? money(c.nextCommissionTier.rate) + ' fixed' : pct(c.nextCommissionTier.rate)) + ' tier');
+    }
+    if (c.nextBonus) next.push(qty(c.nextBonus.packagesNeeded) + ' more package(s) for the ' + money(c.nextBonus.amount) + ' bonus');
+    const est = c.isEstimate ? 'Estimated' : 'Final';
+    return '<div class="grid kpis">' +
+      kpi(my + 'Monthly target', money(c.salesTarget), qty(c.packageTarget) + ' package target') +
+      kpi(my + 'Sales', money(c.sales), c.saleCount + ' commissionable sale(s)' + (c.nonCommissionableSales ? ' · ' + money(c.nonCommissionableSales) + ' not counted' : '')) +
+      '<div class="kpi"><div class="label">Target progress</div><div class="value">' + pct(c.salesProgress) + '</div>' + progressBar(c.salesProgress) + '</div>' +
+      remaining +
+      '<div class="kpi"><div class="label">Packages sold</div><div class="value">' + qty(c.packageCount) + ' <span class="muted" style="font-size:.6em">/ ' + qty(c.packageTarget) + '</span></div>' +
+      progressBar(c.packageProgress, 'sm') + '<div class="hint">' + (c.packagesRemaining > 0 ? qty(c.packagesRemaining) + ' package(s) remaining' : 'Package target reached') + '</div></div>' +
+      kpi((forStaff ? 'Current ' : '') + 'Commission', money(c.commissionAmount), esc(c.commissionTier)) +
+      kpi((forStaff ? 'Current ' : '') + 'Bonus', money(c.bonusAmount), esc(c.bonusTier)) +
+      kpi('Base', money(c.baseCompensation), c.effectiveHourlyRate !== null && c.effectiveHourlyRate !== undefined ? 'Effective ' + money(c.effectiveHourlyRate) + '/hour' : (c.baseType === 'HOURLY' ? 'Hourly' : 'Fixed monthly')) +
+      '<div class="kpi feature wide"><div class="label">' + est + ' total</div><div class="value">' + money(c.totalCompensation) + '</div>' +
+      '<div class="hint">Base ' + money(c.baseCompensation) + ' + Commission ' + money(c.commissionAmount) + ' + Bonus ' + money(c.bonusAmount) + '</div></div>' +
+      (next.length ? '<div class="kpi wide"><div class="label">Next milestones</div><div style="margin-top:8px;display:grid;gap:4px;font-size:14px">' + next.map((n) => '<div>→ ' + esc(n) + '</div>').join('') + '</div></div>' : '') +
+      '</div>';
+  }
+
+  function estimateBanner(c) {
+    if (c.isEstimate) {
+      return '<div class="alert warn"><div class="grow"><strong>Estimated amounts.</strong> This month is ' + esc(c.status) +
+        ' — figures update as sales are recorded and become final only when the Admin approves them.</div></div>';
+    }
+    return '<div class="alert ok"><div class="grow"><strong>Final — ' + esc(c.status) + '.</strong> These figures are a saved historical record' +
+      (c.approvedAt ? ' (approved ' + esc(dateLabel(c.approvedAt)) + (c.paidAt ? ', paid ' + esc(dateLabel(c.paidAt)) : '') + ')' : '') + ' and will not change.</div></div>';
+  }
+
+  function scheduleInfo(d) {
+    const s = d.schedule;
+    const c = d.calc;
+    return '<dl class="dl">' +
+      '<dt>Staff</dt><dd>' + esc(d.staffName) + '</dd>' +
+      '<dt>Position</dt><dd>' + esc(s.Position || '—') + '</dd>' +
+      '<dt>Month</dt><dd>' + esc(monthLabel(s.Month)) + '</dd>' +
+      '<dt>Target period</dt><dd>' + esc(dateLabel(s.StartDate)) + ' – ' + esc(dateLabel(s.EndDate)) + '</dd>' +
+      '<dt>Date issued</dt><dd>' + esc(dateLabel(s.DateIssued)) + '</dd>' +
+      '<dt>Package target</dt><dd>' + qty(s.PackageTarget) + ' packages</dd>' +
+      '<dt>Gross sales target</dt><dd>' + money(s.SalesTarget) + '</dd>' +
+      '<dt>Additional target</dt><dd>' + esc(s.AdditionalTarget || '—') + '</dd>' +
+      '<dt>Special incentives</dt><dd>' + esc(s.SpecialIncentives || '—') + '</dd>' +
+      '<dt>Base compensation</dt><dd>' + (s.BaseType === 'HOURLY' ? money(s.HourlyRate) + '/hour × ' + qty(c.baseHoursUsed) + ' h = ' + money(c.baseCompensation) : money(s.BaseCompensation)) + '</dd>' +
+      '<dt>Expected hours</dt><dd>' + (s.ExpectedHours !== null && s.ExpectedHours !== '' ? qty(s.ExpectedHours) + ' h' : '—') +
+      (c.effectiveHourlyRate !== null && c.effectiveHourlyRate !== undefined ? ' <span class="muted">(effective ' + money(c.effectiveHourlyRate) + '/hour)</span>' : '') + '</dd>' +
+      (s.ActualHours !== null && s.ActualHours !== '' && s.ActualHours !== undefined ? '<dt>Actual hours</dt><dd>' + qty(s.ActualHours) + ' h</dd>' : '') +
+      '<dt>Commission structure</dt><dd>' + esc(STRUCTURE_LABEL[s.CommissionStructure] || s.CommissionStructure) + '</dd>' +
+      '<dt>Bonus structure</dt><dd>' + esc(BONUS_LABEL[s.BonusStructure] || s.BonusStructure) + '</dd>' +
+      (s.Notes ? '<dt>Notes</dt><dd>' + esc(s.Notes) + '</dd>' : '') +
+      '</dl>';
+  }
+
+  function rulesCards(d) {
+    return '<div class="two-col section">' +
+      '<div class="card"><div class="card-head"><h2>Commission tiers</h2><span class="muted small">' + esc(STRUCTURE_LABEL[d.schedule.CommissionStructure] || '') + '</span></div>' + tiersTable(d.tiers, d.calc) + '</div>' +
+      '<div class="card"><div class="card-head"><h2>Bonus tiers</h2><span class="muted small">' + esc(BONUS_LABEL[d.schedule.BonusStructure] || '') + '</span></div>' + bonusTable(d.bonusTiers, d.calc) + '</div>' +
+      '</div>';
+  }
+
+  /* ================================================================ */
+  /* ADMIN: Dashboard                                                 */
+  /* ================================================================ */
+  async function viewAdminDashboard(month) {
+    const d = await get('getAdminDashboard', month || '');
+    const months = monthRange(d.months);
+    const t = d.totals;
+    const v = setView(
+      pageHead('Dashboard', d.monthLabel,
+        '<select id="dash-month" aria-label="Month">' + monthOptions(d.month, months) + '</select>' +
+        '<button class="btn gold" id="dash-sale">' + icon('plus') + 'Record sale</button>') +
+      (d.pendingApproval ? '<div class="alert warn"><div class="grow"><strong>' + d.pendingApproval + ' schedule(s) awaiting approval.</strong> Check the sales, then approve.</div><a class="btn sm" href="#/schedules/all/Pending Approval">Review</a></div>' : '') +
+      (d.staffWithoutSchedule.length ? '<div class="alert info"><div class="grow">No ' + esc(d.monthLabel) + ' schedule yet for: <strong>' +
+        d.staffWithoutSchedule.map((u) => esc(u.name)).join(', ') + '</strong>.</div><a class="btn sm" href="#/schedules">Create schedules</a></div>' : '') +
+      '<div class="grid kpis">' +
+      kpi('Studio sales', money(t.sales), 'Commissionable, all staff') +
+      '<div class="kpi"><div class="label">Combined target</div><div class="value">' + money(t.salesTarget) + '</div>' + progressBar(t.salesTarget ? t.sales / t.salesTarget * 100 : 0, 'sm') +
+      '<div class="hint">' + pct(t.salesTarget ? Math.round(t.sales / t.salesTarget * 1000) / 10 : null) + ' reached</div></div>' +
+      kpi('Packages sold', qty(t.packageCount)) +
+      kpi('Commission', money(t.commissionAmount)) +
+      kpi('Bonus', money(t.bonusAmount)) +
+      kpi('Base compensation', money(t.baseCompensation)) +
+      '<div class="kpi feature wide"><div class="label">Total compensation</div><div class="value">' + money(t.totalCompensation) + '</div>' +
+      '<div class="hint">Base + Commission + Bonus · ' + d.rows.length + ' schedule(s), ' + d.rows.filter((r) => r.locked).length + ' finalized</div></div>' +
+      '</div>' +
+      '<div class="card section" style="margin-top:18px"><div class="card-head"><h2>Staff performance</h2><span class="muted small">Click a row for details</span></div>' +
+      '<div class="mobile-sort"><label class="label-sm" for="dash-sort">Sort by</label><select id="dash-sort"></select></div>' +
+      '<div id="dash-table"></div></div>');
+
+    const cols = [
+      { key: 'staffName', label: 'Staff', sortable: true, primary: true, render: (r) => '<div class="cell-strong">' + esc(r.staffName) + '</div><div class="cell-sub">' + esc(r.position || '') + '</div>' },
+      { key: 'sales', label: 'Sales', right: true, sortable: true, render: (r) => money(r.sales) },
+      { key: 'salesTarget', label: 'Target', right: true, sortable: true, render: (r) => money(r.salesTarget) },
+      { key: 'salesProgress', label: 'Progress', right: true, sortable: true, render: (r) => pct(r.salesProgress) + progressBar(r.salesProgress, 'sm') },
+      { key: 'packageCount', label: 'Packages', right: true, sortable: true, render: (r) => qty(r.packageCount) + ' / ' + qty(r.packageTarget) },
+      { key: 'commissionAmount', label: 'Commission', right: true, sortable: true, render: (r) => money(r.commissionAmount) },
+      { key: 'bonusAmount', label: 'Bonus', right: true, sortable: true, render: (r) => money(r.bonusAmount) },
+      { key: 'totalCompensation', label: 'Total', right: true, sortable: true, render: (r) => '<strong>' + money(r.totalCompensation) + '</strong>' },
+      { key: 'status', label: 'Status', render: (r) => badge(r.status) }
+    ];
+    const sortSel = $('#dash-sort', v);
+    sortSel.innerHTML = cols.filter((c) => c.sortable).map((c) => '<option value="' + c.key + '">' + esc(c.label) + '</option>').join('');
+    const draw = () => {
+      const { key, dir } = S.dashSort;
+      const rows = d.rows.slice().sort((a, b) => {
+        const x = a[key], y = b[key];
+        return (typeof x === 'string' ? String(x).localeCompare(y) : (Number(x) || 0) - (Number(y) || 0)) * dir;
+      });
+      $('#dash-table', v).innerHTML = table(cols, rows, {
+        sort: S.dashSort,
+        rowLink: (r) => '#/schedule/' + r.scheduleId,
+        emptyTitle: 'No schedules for ' + d.monthLabel,
+        empty: '<p>Create a monthly schedule for each staff member, or copy last month\'s.</p><a class="btn primary" href="#/schedules">Go to Monthly Schedules</a>'
+      });
+      sortSel.value = key;
+      $$('th[data-sort]', v).forEach((th) => th.addEventListener('click', () => {
+        const k = th.getAttribute('data-sort');
+        S.dashSort = { key: k, dir: S.dashSort.key === k ? -S.dashSort.dir : 1 };
+        draw();
+      }));
+      bindRowLinks(v);
+    };
+    sortSel.addEventListener('change', () => { S.dashSort = { key: sortSel.value, dir: sortSel.value === 'staffName' ? 1 : -1 }; draw(); });
+    draw();
+    $('#dash-month', v).addEventListener('change', (e) => go('dashboard/' + e.target.value));
+    $('#dash-sale', v).addEventListener('click', () => openSaleForm(null, () => route()));
+  }
+
+  /* ================================================================ */
+  /* ADMIN: Sales                                                     */
+  /* ================================================================ */
+  async function viewSales(month, staffId) {
+    month = month === 'all' ? '' : (month || S.config.currentMonth);
+    staffId = staffId || '';
+    const [users, data] = await Promise.all([loadUsers(), get('listSales', { month: month, staffId: staffId })]);
+    const v = setView(pageHead('Sales', 'Sales entries', '<button class="btn gold" id="add-sale">' + icon('plus') + 'Record sale</button>') +
+      '<div class="filters no-print">' +
+      '<div class="field"><label>Month</label><select id="f-month">' + monthOptions(month, monthRange(), 'All months') + '</select></div>' +
+      '<div class="field"><label>Staff</label><select id="f-staff"><option value="">All staff</option>' + staffOptions(users, staffId, users.map((u) => u.UserID)) + '</select></div>' +
+      '</div>' +
+      '<div class="grid kpis three" style="margin-bottom:18px">' +
+      kpi('Sales recorded', String(data.totals.count)) +
+      kpi('Total final amount', money(data.totals.final)) +
+      kpi('Commissionable', money(data.totals.commissionable), esc(S.config.commissionBasisLabel || '')) +
+      '</div>' +
+      '<div class="card">' + table([
+        { key: 'SaleDate', label: 'Date', render: (s) => '<span class="nowrap">' + esc(dateLabel(s.SaleDate)) + '</span>' },
+        { key: 'ClientName', label: 'Client', primary: true, render: (s) => '<div class="cell-strong">' + esc(s.ClientName) + '</div><div class="cell-sub">' + esc(s.ClientContact || '') + '</div>' },
+        { key: 'PackageName', label: 'Package', render: (s) => esc(s.PackageName) + (s.Discount ? '<div class="cell-sub">' + money(s.GrossPrice) + ' − ' + money(s.Discount) + '</div>' : '') },
+        { key: 'attribution', label: 'Credited to', render: (s) => esc(s.attribution) + (s.SharedSale ? ' <span class="badge">Shared</span>' : '') },
+        { key: 'FinalPaidAmount', label: 'Final amount', right: true, render: (s) => '<strong>' + money(s.FinalPaidAmount) + '</strong>' },
+        { key: 'status', label: 'Status', render: (s) => '<div class="small">' + esc(s.PaymentStatus) + ' · ' + esc(s.BookingStatus) + '</div>' },
+        { key: 'isCommissionable', label: 'Counts', render: (s) => yesNo(s.isCommissionable, 'Counts', 'Not counted') },
+        { key: 'actions', label: '', render: (s) => '<div class="actions one-line"><button class="btn sm" data-edit="' + esc(s.SaleID) + '">Edit</button><button class="btn sm danger" data-del="' + esc(s.SaleID) + '">Delete</button></div>' }
+      ], data.sales, { emptyTitle: 'No sales recorded', empty: '<p>Record the first sale for this period.</p>' }) + '</div>');
+
+    const refilter = () => go('sales/' + ($('#f-month').value || 'all') + ($('#f-staff').value ? '/' + $('#f-staff').value : ''));
+    $('#f-month', v).addEventListener('change', refilter);
+    $('#f-staff', v).addEventListener('change', refilter);
+    $('#add-sale', v).addEventListener('click', () => openSaleForm(null, route));
+    $$('[data-edit]', v).forEach((b) => b.addEventListener('click', () => openSaleForm(data.sales.find((s) => s.SaleID === b.getAttribute('data-edit')), route)));
+    $$('[data-del]', v).forEach((b) => b.addEventListener('click', async () => {
+      const sale = data.sales.find((s) => s.SaleID === b.getAttribute('data-del'));
+      const ok = await confirmBox({ title: 'Delete sale?', message: 'Delete the ' + esc(money(sale.FinalPaidAmount)) + ' sale for <strong>' + esc(sale.ClientName) + '</strong> (' + esc(dateLabel(sale.SaleDate)) + ')? This is recorded in the Audit Log.', confirmLabel: 'Delete', danger: true });
+      if (!ok) return;
+      withBusy(b, api('deleteSale', sale.SaleID)).then((r) => { toast(r.message); route(); }).catch(fail);
+    }));
+  }
+
+  /** Sale entry form (create / edit), with single or shared attribution. */
+  async function openSaleForm(sale, after) {
+    const [users, packages] = await Promise.all([loadUsers(), loadPackages()]);
+    const s = sale || { SaleDate: S.config.today, PaymentStatus: 'Paid', BookingStatus: 'Confirmed', Commissionable: 'AUTO', Discount: 0 };
+    const credited = sale ? (sale.SharedSale ? sale.splits.map((x) => x.StaffID) : [sale.StaffID]) : [];
+    const pkgOpts = packages.filter((p) => p.Active || (sale && p.PackageID === sale.PackageID))
+      .map((p) => '<option value="' + esc(p.PackageID) + '" data-price="' + p.Price + '"' + (p.PackageID === s.PackageID ? ' selected' : '') + '>' +
+        esc(p.PackageName) + ' — ' + money(p.Price) + (p.Active ? '' : ' (disabled)') + '</option>').join('');
+    const opt = (list, sel) => list.map((x) => '<option' + (x === sel ? ' selected' : '') + '>' + esc(x) + '</option>').join('');
+    const splitRow = (sp) => '<div class="split-row"><div class="field"><label>Staff</label><select class="sp-staff"><option value="">Choose…</option>' +
+      staffOptions(users, sp.StaffID, credited) + '</select></div>' +
+      '<div class="field"><label>Share %</label><input class="sp-pct" type="number" min="0" max="100" step="0.01" inputmode="decimal" value="' + esc(sp.Percentage === undefined ? '' : sp.Percentage) + '"></div>' +
+      '<div class="field credit"><label>Credited</label><input class="sp-credit" readonly tabindex="-1"></div>' +
+      '<button type="button" class="icon-btn sp-del" aria-label="Remove">' + icon('trash') + '</button></div>';
+    const splits = sale && sale.SharedSale ? sale.splits : [{ StaffID: '', Percentage: 50 }, { StaffID: '', Percentage: 50 }];
+
+    modal({
+      title: sale ? 'Edit sale' : 'Record a sale',
+      wide: true,
+      submitLabel: sale ? 'Save changes' : 'Save sale',
+      body:
+        '<div class="form-grid">' +
+        '<div class="field"><label>Sale date</label><input type="date" name="SaleDate" value="' + esc(s.SaleDate) + '" required></div>' +
+        '<div class="field"><label>Client name</label><input name="ClientName" value="' + esc(s.ClientName || '') + '" required></div>' +
+        '<div class="field"><label>Client contact</label><input name="ClientContact" value="' + esc(s.ClientContact || '') + '" placeholder="Mobile or email"></div>' +
+        '<div class="field span-2"><label>Package</label><select name="PackageID" id="sf-pkg" required><option value="">Choose a package…</option>' + pkgOpts + '</select></div>' +
+        '<div class="field"><label>Package price</label><input name="GrossPrice" id="sf-gross" type="number" min="0" step="0.01" inputmode="decimal" value="' + esc(s.GrossPrice === undefined ? '' : s.GrossPrice) + '"></div>' +
+        '<div class="field"><label>Discount</label><input name="Discount" id="sf-disc" type="number" min="0" step="0.01" inputmode="decimal" value="' + esc(s.Discount || 0) + '"></div>' +
+        '<div class="field"><label>Final paid amount</label><input name="FinalPaidAmount" id="sf-final" type="number" min="0" step="0.01" inputmode="decimal" value="' + esc(s.FinalPaidAmount === undefined ? '' : s.FinalPaidAmount) + '"><span class="help">Defaults to price − discount.</span></div>' +
+        '<div class="field"><label>Commission</label><select name="Commissionable">' +
+        [['AUTO', 'Follow the commission rules'], ['YES', 'Always count this sale'], ['NO', 'Never count this sale']].map((o) => '<option value="' + o[0] + '"' + (o[0] === s.Commissionable ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select></div>' +
+        '<div class="field"><label>Payment status</label><select name="PaymentStatus">' + opt(S.config.paymentStatuses, s.PaymentStatus) + '</select></div>' +
+        '<div class="field"><label>Booking status</label><select name="BookingStatus">' + opt(S.config.bookingStatuses, s.BookingStatus) + '</select></div>' +
+        '</div>' +
+        '<div class="form-section"><h2>Sales attribution</h2><p>Every sale must be credited to the staff member who made it. Shared sales are split by the percentages you enter.</p>' +
+        '<div class="segmented" style="margin-bottom:14px"><label><input type="radio" name="attr" value="single"' + (s.SharedSale ? '' : ' checked') + '>Single staff</label>' +
+        '<label><input type="radio" name="attr" value="shared"' + (s.SharedSale ? ' checked' : '') + '>Shared between staff</label></div>' +
+        '<div id="sf-single"><div class="field"><label>Staff member</label><select name="StaffID"><option value="">Choose…</option>' + staffOptions(users, s.SharedSale ? '' : s.StaffID, credited) + '</select></div></div>' +
+        '<div id="sf-shared" data-skip><div id="sf-splits">' + splits.map(splitRow).join('') + '</div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><button type="button" class="btn sm" id="sf-add-split">' + icon('plus') + 'Add staff</button><span class="split-total" id="sf-total"></span></div></div>' +
+        '</div>' +
+        '<div class="field"><label>Notes</label><textarea name="Notes">' + esc(s.Notes || '') + '</textarea></div>',
+      onOpen: (form) => {
+        const gross = $('#sf-gross', form), disc = $('#sf-disc', form), fin = $('#sf-final', form), pkg = $('#sf-pkg', form);
+        let finalTouched = !!sale && Number(sale.FinalPaidAmount) !== Math.round((Number(sale.GrossPrice) - Number(sale.Discount)) * 100) / 100;
+        const syncFinal = () => {
+          if (!finalTouched) fin.value = gross.value === '' ? '' : Math.max(0, Math.round(((Number(gross.value) || 0) - (Number(disc.value) || 0)) * 100) / 100);
+          updateSplits();
+        };
+        pkg.addEventListener('change', () => { const o = pkg.selectedOptions[0]; if (o && o.dataset.price) gross.value = o.dataset.price; syncFinal(); });
+        gross.addEventListener('input', syncFinal);
+        disc.addEventListener('input', syncFinal);
+        fin.addEventListener('input', () => { finalTouched = true; updateSplits(); });
+        const toggle = () => {
+          const shared = $('input[name=attr]:checked', form).value === 'shared';
+          $('#sf-single', form).hidden = shared;
+          $('#sf-shared', form).hidden = !shared;
+        };
+        $$('input[name=attr]', form).forEach((r) => r.addEventListener('change', toggle));
+        function updateSplits() {
+          const amount = Number(fin.value) || 0;
+          let total = 0;
+          $$('.split-row', form).forEach((row) => {
+            const p = Number($('.sp-pct', row).value) || 0;
+            total += p;
+            $('.sp-credit', row).value = money(amount * p / 100);
+          });
+          total = Math.round(total * 100) / 100;
+          const el = $('#sf-total', form);
+          el.textContent = 'Total: ' + total + '%' + (total === 100 ? ' ✓' : ' (must be 100%)');
+          el.style.color = total === 100 ? 'var(--ok)' : 'var(--bad)';
+        }
+        const bindRow = (row) => {
+          $('.sp-pct', row).addEventListener('input', updateSplits);
+          $('.sp-del', row).addEventListener('click', () => { row.remove(); updateSplits(); });
+        };
+        $$('.split-row', form).forEach(bindRow);
+        $('#sf-add-split', form).addEventListener('click', () => {
+          $('#sf-splits', form).insertAdjacentHTML('beforeend', splitRow({ StaffID: '', Percentage: '' }));
+          bindRow($('#sf-splits .split-row:last-child', form));
+          updateSplits();
+        });
+        toggle();
+        if (!sale) syncFinal(); else updateSplits();
+      },
+      onSubmit: (vals, form) => {
+        const shared = vals.attr === 'shared';
+        const payload = Object.assign({}, vals, { SaleID: sale ? sale.SaleID : '', SharedSale: shared });
+        delete payload.attr;
+        if (shared) {
+          payload.Splits = $$('.split-row', form).map((row) => ({ StaffID: $('.sp-staff', row).value, Percentage: $('.sp-pct', row).value }));
+          payload.StaffID = '';
+        }
+        return api('saveSale', payload).then((r) => { toast(r.message); if (after) after(); });
+      }
+    });
+  }
+
+  /* ================================================================ */
+  /* ADMIN: Staff                                                     */
+  /* ================================================================ */
+  async function viewStaff() {
+    const users = await loadUsers(true);
+    const v = setView(pageHead('Staff', 'Team members', '<button class="btn gold" id="add-user">' + icon('plus') + 'Add staff</button>') +
+      '<div class="alert info"><div class="grow"><strong>How sign-in works:</strong> people whose Google account the app can see (the owner, or same Google Workspace domain) are signed in automatically. ' +
+      'Everyone else signs in with their email and an <strong>access code</strong> you set here. Admin rights come from <em>Settings → Admin emails</em>.</div></div>' +
+      '<div class="card">' + table([
+        { key: 'Name', label: 'Name', primary: true, render: (u) => '<div class="cell-strong">' + esc(u.Name) + '</div><div class="cell-sub">' + esc(u.Email) + '</div>' },
+        { key: 'Role', label: 'Role', render: (u) => u.Role === 'Admin' ? '<span class="badge Approved">Admin</span>' : '<span class="badge">Staff</span>' },
+        { key: 'Position', label: 'Position', render: (u) => esc(u.Position || '—') },
+        { key: 'BaseCompensationDefault', label: 'Default base', right: true, render: (u) => money(u.BaseCompensationDefault) },
+        { key: 'Status', label: 'Status', render: (u) => yesNo(u.Status === 'Active', 'Active', 'Inactive') },
+        { key: 'hasAccessCode', label: 'Access code', render: (u) => u.hasAccessCode ? 'Set' : '<span class="muted">Not set</span>' },
+        { key: 'actions', label: '', render: (u) => '<div class="actions"><button class="btn sm" data-edit="' + esc(u.UserID) + '">Edit</button><button class="btn sm" data-code="' + esc(u.UserID) + '">Access code</button><a class="btn sm ghost" href="#/schedules/all/all/' + esc(u.UserID) + '">Schedules</a></div>' }
+      ], users) + '</div>');
+
+    const edit = (u) => modal({
+      title: u ? 'Edit ' + u.Name : 'Add staff member',
+      body: '<div class="form-grid two">' +
+        '<div class="field"><label>Full name</label><input name="Name" value="' + esc(u ? u.Name : '') + '" required></div>' +
+        '<div class="field"><label>Email</label><input name="Email" type="email" value="' + esc(u ? u.Email : '') + '" required><span class="help">Their Google account email, used to sign in.</span></div>' +
+        '<div class="field"><label>Position</label><input name="Position" value="' + esc(u ? u.Position : 'Sales & Marketing') + '"></div>' +
+        '<div class="field"><label>Default base compensation</label><input name="BaseCompensationDefault" type="number" min="0" step="0.01" value="' + esc(u ? u.BaseCompensationDefault : '') + '"><span class="help">Pre-fills new schedules; each month can differ.</span></div>' +
+        '<div class="field"><label>Role</label><select name="Role"><option' + (!u || u.Role === 'Staff' ? ' selected' : '') + '>Staff</option><option' + (u && u.Role === 'Admin' ? ' selected' : '') + '>Admin</option></select></div>' +
+        '<div class="field"><label>Status</label><select name="Status"><option' + (!u || u.Status === 'Active' ? ' selected' : '') + '>Active</option><option' + (u && u.Status === 'Inactive' ? ' selected' : '') + '>Inactive</option></select><span class="help">Inactive staff cannot sign in or receive new sales. History is kept.</span></div>' +
+        '</div>',
+      onSubmit: (vals) => api('saveUser', Object.assign({ UserID: u ? u.UserID : '' }, vals)).then((r) => { toast(r.message); S.users = null; route(); })
+    });
+    $('#add-user', v).addEventListener('click', () => edit(null));
+    $$('[data-edit]', v).forEach((b) => b.addEventListener('click', () => edit(users.find((u) => u.UserID === b.getAttribute('data-edit')))));
+    $$('[data-code]', v).forEach((b) => b.addEventListener('click', () => {
+      const u = users.find((x) => x.UserID === b.getAttribute('data-code'));
+      modal({
+        title: 'Access code for ' + u.Name,
+        body: '<p class="muted small" style="margin:0">Share this code privately with ' + esc(u.Name) + '. They sign in with <strong>' + esc(u.Email) + '</strong> and this code, and can change it later. Codes are stored hashed — nobody can read them back.</p>' +
+          '<div class="field"><label>New access code (min. 6 characters)</label><input name="code" autocomplete="off" minlength="6" required></div>',
+        submitLabel: 'Set code',
+        onSubmit: (vals) => api('setUserAccessCode', u.UserID, vals.code).then((r) => { toast(r.message); S.users = null; route(); })
+      });
+    }));
+  }
+
+  /* ================================================================ */
+  /* ADMIN: Monthly schedules list                                    */
+  /* ================================================================ */
+  async function viewSchedules(month, status, staffId) {
+    month = !month || month === 'all' ? '' : month;
+    status = !status || status === 'all' ? '' : status;
+    staffId = staffId || '';
+    const [users, data] = await Promise.all([loadUsers(), get('listSchedules', { month: month, status: status, staffId: staffId })]);
+    const v = setView(pageHead('Monthly Sales Target & Commission Schedules', 'Monthly schedules',
+      '<button class="btn" id="dup-month">Duplicate previous month</button><a class="btn gold" href="#/schedule-edit/new">' + icon('plus') + 'New schedule</a>') +
+      '<div class="filters no-print">' +
+      '<div class="field"><label>Month</label><select id="f-month">' + monthOptions(month, monthRange(data.months), 'All months') + '</select></div>' +
+      '<div class="field"><label>Status</label><select id="f-status"><option value="">All statuses</option>' + S.config.scheduleStatuses.map((s) => '<option' + (s === status ? ' selected' : '') + '>' + esc(s) + '</option>').join('') + '</select></div>' +
+      '<div class="field"><label>Staff</label><select id="f-staff"><option value="">All staff</option>' + staffOptions(users, staffId, users.map((u) => u.UserID)) + '</select></div>' +
+      '</div>' +
+      '<div class="card">' + table([
+        { key: 'staffName', label: 'Staff', primary: true, render: (r) => '<div class="cell-strong nowrap">' + esc(r.staffName) + '</div>' },
+        { key: 'month', label: 'Month', render: (r) => '<div class="nowrap">' + esc(r.monthLabel) + '</div><div class="cell-sub nowrap">' + esc(shortDate(r.startDate)) + ' – ' + esc(shortDate(r.endDate)) + '</div>' },
+        { key: 'salesTarget', label: 'Target', right: true, render: (r) => money(r.salesTarget) + '<div class="cell-sub nowrap">' + qty(r.packageTarget) + ' pkgs</div>' },
+        { key: 'sales', label: 'Actual', right: true, render: (r) => money(r.sales) + '<div class="cell-sub nowrap">' + qty(r.packageCount) + ' pkgs · ' + pct(r.salesProgress) + '</div>' },
+        { key: 'commissionAmount', label: 'Commission', right: true, render: (r) => money(r.commissionAmount) },
+        { key: 'bonusAmount', label: 'Bonus', right: true, render: (r) => money(r.bonusAmount) },
+        { key: 'status', label: 'Status', render: (r) => badge(r.status) },
+        { key: 'actions', label: '', render: scheduleActions }
+      ], data.schedules, {
+        rowLink: (r) => '#/schedule/' + r.scheduleId,
+        emptyTitle: 'No schedules found',
+        empty: '<p>Create a schedule for each staff member, or duplicate last month\'s and adjust it.</p>'
+      }) + '</div>');
+
+    const refilter = () => go('schedules/' + ($('#f-month').value || 'all') + '/' + ($('#f-status').value || 'all') + ($('#f-staff').value ? '/' + $('#f-staff').value : ''));
+    ['#f-month', '#f-status', '#f-staff'].forEach((id) => $(id, v).addEventListener('change', refilter));
+    bindScheduleActions(v, data.schedules);
+    bindRowLinks(v);
+    $('#dup-month', v).addEventListener('click', () => openDuplicateMonth(data.months));
+  }
+
+  function scheduleActions(r) {
+    const b = (act, label, cls) => '<button class="btn sm ' + (cls || '') + '" data-act="' + act + '" data-id="' + esc(r.scheduleId) + '">' + label + '</button>';
+    const list = ['<a class="btn sm" href="#/schedule/' + esc(r.scheduleId) + '">View</a>'];
+    if (!r.locked) list.push('<a class="btn sm" href="#/schedule-edit/' + esc(r.scheduleId) + '">Edit</a>');
+    list.push(b('duplicate', 'Duplicate'));
+    if (r.status === 'Draft') list.push(b('activate', 'Activate', 'primary'));
+    if (r.status === 'Active' || r.status === 'Pending Approval') list.push(b('approve', 'Approve', 'gold'));
+    if (r.status === 'Approved') list.push(b('markPaid', 'Mark Paid', 'primary'));
+    if (r.locked) list.push(b('unlock', 'Unlock', 'danger'));
+    return '<div class="actions one-line">' + list.join('') + '</div>';
+  }
+
+  function bindScheduleActions(root, rows) {
+    $$('[data-act]', root).forEach((btn) => btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.getAttribute('data-id');
+      const act = btn.getAttribute('data-act');
+      const row = rows.find((r) => (r.scheduleId || (r.schedule && r.schedule.ScheduleID)) === id) || {};
+      if (act === 'duplicate') return openDuplicateOne(id, row.month);
+      scheduleStatusAction(id, act, row, btn);
+    }));
+  }
+
+  /** Confirms and runs a workflow action (approve, mark paid, unlock, ...). */
+  async function scheduleStatusAction(id, act, row, btn) {
+    const who = esc(row.staffName || '') + ' · ' + esc(row.monthLabel || monthLabel(row.month));
+    const cfg = {
+      activate: { title: 'Activate schedule?', message: 'Activate the schedule for <strong>' + who + '</strong>? The staff member will be able to see it.', confirmLabel: 'Activate' },
+      revertToDraft: { title: 'Move back to Draft?', message: 'Hide this schedule from the staff member again?', confirmLabel: 'Move to Draft' },
+      close: { title: 'Close month?', message: 'Move <strong>' + who + '</strong> to Pending Approval?', confirmLabel: 'Close month' },
+      reopen: { title: 'Reopen schedule?', message: 'Move this schedule back to Active?', confirmLabel: 'Reopen' },
+      approve: {
+        title: 'Approve commission?',
+        message: 'Approve <strong>' + who + '</strong>: ' + money(row.totalCompensation) + ' total (commission ' + money(row.commissionAmount) + ', bonus ' + money(row.bonusAmount) + ')?' +
+          '<br><br>The figures, tiers and sales will be saved as a permanent record. Later rule changes will not affect this month.' +
+          (row.status === 'Active' ? '<br><br><strong>Note:</strong> this month has not been closed yet.' : ''),
+        confirmLabel: 'Approve'
+      },
+      markPaid: { title: 'Mark as Paid?', message: 'Confirm that <strong>' + who + '</strong> has been paid ' + money(row.totalCompensation) + '. The month will be locked.', confirmLabel: 'Mark Paid' },
+      unlock: {
+        title: 'Unlock for correction?',
+        message: 'This schedule is <strong>' + esc(row.status) + '</strong>. Unlocking moves it back to Pending Approval so sales and rules can be corrected. The approved snapshot is kept as history. Your name, the time and the reason are recorded in the Audit Log.',
+        confirmLabel: 'Unlock', danger: true, reasonLabel: 'Reason for unlocking'
+      }
+    }[act];
+    const ok = await confirmBox(cfg);
+    if (!ok) return;
+    withBusy(btn, api('changeScheduleStatus', id, act, ok.reason)).then((r) => { toast(r.message); route(); }).catch(fail);
+  }
+
+  function openDuplicateOne(id, month) {
+    const target = month ? addMonths(month, 1) : S.config.currentMonth;
+    modal({
+      title: 'Duplicate schedule',
+      body: '<p class="muted small" style="margin:0">Copies the targets, commission tiers, bonus tiers, base compensation and incentives into a new <strong>Draft</strong>. You can then adjust the dates, targets and tiers.</p>' +
+        '<div class="field"><label>New month</label><select name="month">' + monthOptions(target, monthRange([target])) + '</select></div>' +
+        '<label class="check"><input type="checkbox" name="allowDuplicate">Allow a second schedule for this staff member in that month</label>',
+      submitLabel: 'Duplicate',
+      onSubmit: (v) => api('duplicateSchedule', id, v.month, v.allowDuplicate).then((r) => { toast(r.message); go('schedule-edit/' + r.data.scheduleId); })
+    });
+  }
+
+  function openDuplicateMonth(months) {
+    const from = (months && months[0]) || addMonths(S.config.currentMonth, -1);
+    const to = addMonths(from, 1);
+    modal({
+      title: 'Duplicate previous month',
+      body: '<p class="muted small" style="margin:0">Creates a Draft schedule in the new month for every staff member who had one in the source month, with the same targets, tiers, bonuses and base. Staff who already have a schedule in the new month are skipped.</p>' +
+        '<div class="form-grid two"><div class="field"><label>Copy from</label><select name="from">' + monthOptions(from, monthRange(months)) + '</select></div>' +
+        '<div class="field"><label>Into</label><select name="to">' + monthOptions(to, monthRange([to])) + '</select></div></div>',
+      submitLabel: 'Duplicate month',
+      onSubmit: (v) => api('duplicateMonth', v.from, v.to).then((r) => { toast(r.message); go('schedules/' + v.to); })
+    });
+  }
+
+  /* ================================================================ */
+  /* ADMIN: Schedule detail                                           */
+  /* ================================================================ */
+  async function viewScheduleDetail(id) {
+    const d = await get('getSchedule', id);
+    const s = d.schedule, c = d.calc;
+    const row = { scheduleId: s.ScheduleID, staffName: d.staffName, month: s.Month, monthLabel: monthLabel(s.Month), status: s.Status, locked: d.locked,
+      totalCompensation: c.totalCompensation, commissionAmount: c.commissionAmount, bonusAmount: c.bonusAmount };
+    const btn = (act, label, cls) => '<button class="btn ' + (cls || '') + '" data-act="' + act + '" data-id="' + esc(s.ScheduleID) + '">' + label + '</button>';
+    const actions = [];
+    if (!d.locked) actions.push('<a class="btn" href="#/schedule-edit/' + esc(s.ScheduleID) + '">Edit</a>');
+    if (s.Status === 'Draft') actions.push(btn('activate', 'Activate', 'primary'));
+    if (s.Status === 'Active') actions.push(btn('revertToDraft', 'Back to Draft'), btn('close', 'Close month'));
+    if (s.Status === 'Pending Approval') actions.push(btn('reopen', 'Reopen'));
+    if (s.Status === 'Active' || s.Status === 'Pending Approval') actions.push(btn('approve', 'Approve', 'gold'));
+    if (s.Status === 'Approved') actions.push(btn('markPaid', 'Mark Paid', 'primary'));
+    if (d.locked) actions.push(btn('unlock', 'Unlock for Correction', 'danger'));
+    actions.push(btn('duplicate', 'Duplicate'), '<a class="btn" href="#/statement/' + esc(s.ScheduleID) + '">' + icon('print') + 'Statement</a>');
+    if (!d.locked) actions.push('<button class="btn danger" id="del-sched">Delete</button>');
+
+    const v = setView(pageHead(monthLabel(s.Month) + ' · ' + s.Status, d.staffName, '') +
+      '<div class="toolbar no-print" style="margin:-8px 0 20px">' + actions.join('') + '</div>' +
+      (d.locked ? '<div class="alert ok"><div class="grow"><strong>Locked — ' + esc(s.Status) + '.</strong> This month is a historical record. Use “Unlock for Correction” to change it.</div></div>' : estimateBanner(c)) +
+      calcCards(c, false) +
+      '<div class="two-col section" style="margin-top:18px"><div class="card"><div class="card-head"><h2>Schedule details</h2>' + badge(s.Status) + '</div>' + scheduleInfo(d) + '</div>' +
+      '<div class="card"><div class="card-head"><h2>Sales in this period</h2><a href="#/sales/' + esc(s.Month) + '/' + esc(s.StaffID) + '">Open in Sales →</a></div>' +
+      '<dl class="dl"><dt>Commissionable sales</dt><dd>' + money(c.sales) + ' (' + c.saleCount + ')</dd>' +
+      '<dt>Not counted</dt><dd>' + money(c.nonCommissionableSales) + '</dd>' +
+      '<dt>Average sale</dt><dd>' + money(c.averageSale) + '</dd>' +
+      '<dt>Commission tier</dt><dd>' + esc(c.commissionTier) + '</dd>' +
+      '<dt>Bonus</dt><dd>' + esc(c.bonusTier) + '</dd>' +
+      '<dt>Calculated</dt><dd>' + esc(c.calculatedAt || '') + (c.isSnapshot ? ' (saved snapshot)' : ' (live)') + '</dd></dl></div></div>' +
+      rulesCards(d));
+    bindScheduleActions(v, [row]);
+    const del = $('#del-sched', v);
+    if (del) {
+      del.addEventListener('click', async () => {
+        const ok = await confirmBox({ title: 'Delete schedule?', message: 'Delete the ' + esc(monthLabel(s.Month)) + ' schedule for <strong>' + esc(d.staffName) + '</strong>? Sales are not deleted.', confirmLabel: 'Delete', danger: true });
+        if (!ok) return;
+        withBusy(del, api('deleteSchedule', s.ScheduleID)).then((r) => { toast(r.message); go('schedules'); }).catch(fail);
+      });
+    }
+  }
+
+  /* ================================================================ */
+  /* Tier editors (schedule form & commission rules)                  */
+  /* ================================================================ */
+  function tierEditor(host, tiers) {
+    const rowHtml = (t) => '<div class="tier-row">' +
+      '<div class="field"><label>Minimum sales</label><input class="t-min" type="number" min="0" step="0.01" inputmode="decimal" value="' + esc(t.MinSales === null || t.MinSales === undefined ? '' : t.MinSales) + '"></div>' +
+      '<div class="field"><label>Maximum sales</label><input class="t-max" type="number" min="0" step="0.01" inputmode="decimal" placeholder="No maximum" value="' + esc(t.MaxSales === null || t.MaxSales === undefined ? '' : t.MaxSales) + '"></div>' +
+      '<div class="field"><label>Type</label><select class="t-type"><option value="PERCENT"' + (t.CommissionType !== 'FIXED' ? ' selected' : '') + '>Percentage</option><option value="FIXED"' + (t.CommissionType === 'FIXED' ? ' selected' : '') + '>Fixed amount</option></select></div>' +
+      '<div class="field"><label class="t-rate-label">' + (t.CommissionType === 'FIXED' ? 'Amount' : 'Rate %') + '</label><input class="t-rate" type="number" min="0" step="0.01" inputmode="decimal" value="' + esc(t.Rate === undefined ? '' : t.Rate) + '"></div>' +
+      '<button type="button" class="icon-btn t-del" aria-label="Delete tier">' + icon('trash') + '</button></div>';
+    host.innerHTML = '<div class="t-rows">' + tiers.map(rowHtml).join('') + '</div>' +
+      '<button type="button" class="btn sm t-add" style="margin-top:12px">' + icon('plus') + 'Add tier</button>' +
+      '<p class="muted small" style="margin:10px 0 0">Maximums are inclusive to the peso (₱69,999 covers ₱69,999.99). Leave the last maximum blank for “and above”.</p>';
+    const bind = (row) => {
+      $('.t-del', row).addEventListener('click', () => row.remove());
+      $('.t-type', row).addEventListener('change', (e) => { $('.t-rate-label', row).textContent = e.target.value === 'FIXED' ? 'Amount' : 'Rate %'; });
+    };
+    $$('.tier-row', host).forEach(bind);
+    $('.t-add', host).addEventListener('click', () => {
+      const rows = $$('.tier-row', host);
+      const last = rows[rows.length - 1];
+      const nextMin = last && $('.t-max', last).value ? Number($('.t-max', last).value) + 1 : '';
+      $('.t-rows', host).insertAdjacentHTML('beforeend', rowHtml({ MinSales: nextMin, MaxSales: null, CommissionType: 'PERCENT', Rate: '' }));
+      bind($('.t-rows .tier-row:last-child', host));
+    });
+    return () => $$('.tier-row', host).map((row) => ({
+      MinSales: $('.t-min', row).value, MaxSales: $('.t-max', row).value, CommissionType: $('.t-type', row).value, Rate: $('.t-rate', row).value
+    }));
+  }
+
+  function bonusEditor(host, bonusTiers) {
+    const rowHtml = (b) => '<div class="tier-row bonus">' +
+      '<div class="field"><label>Packages sold (at least)</label><input class="b-min" type="number" min="1" step="1" inputmode="numeric" value="' + esc(b.MinPackages === undefined ? '' : b.MinPackages) + '"></div>' +
+      '<div class="field"><label>Bonus amount</label><input class="b-amt" type="number" min="0" step="0.01" inputmode="decimal" value="' + esc(b.BonusAmount === undefined ? '' : b.BonusAmount) + '"></div>' +
+      '<button type="button" class="icon-btn b-del" aria-label="Delete bonus tier">' + icon('trash') + '</button></div>';
+    host.innerHTML = '<div class="b-rows">' + bonusTiers.map(rowHtml).join('') + '</div>' +
+      '<button type="button" class="btn sm b-add" style="margin-top:12px">' + icon('plus') + 'Add bonus tier</button>';
+    const bind = (row) => $('.b-del', row).addEventListener('click', () => row.remove());
+    $$('.tier-row', host).forEach(bind);
+    $('.b-add', host).addEventListener('click', () => {
+      $('.b-rows', host).insertAdjacentHTML('beforeend', rowHtml({ MinPackages: '', BonusAmount: '' }));
+      bind($('.b-rows .tier-row:last-child', host));
+    });
+    return () => $$('.tier-row', host).map((row) => ({ MinPackages: $('.b-min', row).value, BonusAmount: $('.b-amt', row).value }));
+  }
+
+  const structureSelect = (name, value) => '<select name="' + name + '">' +
+    Object.keys(STRUCTURE_LABEL).map((k) => '<option value="' + k + '"' + (k === value ? ' selected' : '') + '>' + esc(STRUCTURE_LABEL[k]) + '</option>').join('') + '</select>';
+  const bonusModeSelect = (name, value) => '<select name="' + name + '">' +
+    Object.keys(BONUS_LABEL).map((k) => '<option value="' + k + '"' + (k === value ? ' selected' : '') + '>' + esc(BONUS_LABEL[k]) + '</option>').join('') + '</select>';
+
+  /* ================================================================ */
+  /* ADMIN: Schedule create / edit form                               */
+  /* ================================================================ */
+  async function viewScheduleEdit(id, presetStaff, presetMonth) {
+    const isNew = !id || id === 'new';
+    const users = await loadUsers();
+    let s, tiers, bonusTiers;
+    if (isNew) {
+      const tpl = await get('getScheduleTemplate');
+      const month = presetMonth || S.config.currentMonth;
+      const staff = users.find((u) => u.UserID === presetStaff);
+      s = {
+        Month: month, StartDate: month + '-01', EndDate: lastDay(month), DateIssued: S.config.today, StaffID: presetStaff || '',
+        Position: staff ? staff.Position : '', PackageTarget: tpl.packageTarget, SalesTarget: tpl.salesTarget,
+        BaseType: 'FIXED', BaseCompensation: staff && staff.BaseCompensationDefault ? staff.BaseCompensationDefault : tpl.baseCompensation,
+        ExpectedHours: tpl.expectedHours, CommissionStructure: tpl.commissionStructure, BonusStructure: tpl.bonusStructure, Status: 'Draft'
+      };
+      tiers = tpl.tiers;
+      bonusTiers = tpl.bonusTiers;
+    } else {
+      const d = await get('getSchedule', id);
+      if (d.locked) {
+        setView('<div class="alert warn"><div class="grow">This schedule is <strong>' + esc(d.schedule.Status) + '</strong> and locked. Unlock it for correction from the schedule page first.</div></div><a class="btn" href="#/schedule/' + esc(id) + '">Back to schedule</a>');
+        return;
+      }
+      s = d.schedule;
+      tiers = d.tiers;
+      bonusTiers = d.bonusTiers;
+    }
+    const val = (x) => esc(x === null || x === undefined ? '' : x);
+    const v = setView(pageHead(isNew ? 'New schedule' : 'Edit schedule', isNew ? 'Monthly Sales Target & Commission Schedule' : monthLabel(s.Month) + ' schedule', '') +
+      '<form id="sched-form" class="card" novalidate>' +
+      '<div class="form-section"><h2>Basic information</h2><p>This schedule is the authoritative document for the month. Its targets and rules belong to this month only.</p>' +
+      '<div class="form-grid">' +
+      '<div class="field"><label>Staff member</label><select name="StaffID" id="sc-staff" required><option value="">Choose…</option>' + staffOptions(users, s.StaffID, [s.StaffID]) + '</select></div>' +
+      '<div class="field"><label>Position</label><input name="Position" id="sc-pos" value="' + val(s.Position) + '"></div>' +
+      '<div class="field"><label>Month</label><select name="Month" id="sc-month">' + monthOptions(s.Month, monthRange([s.Month])) + '</select></div>' +
+      '<div class="field"><label>Target start date</label><input type="date" name="StartDate" id="sc-start" value="' + val(s.StartDate) + '"></div>' +
+      '<div class="field"><label>Target end date</label><input type="date" name="EndDate" id="sc-end" value="' + val(s.EndDate) + '"></div>' +
+      '<div class="field"><label>Date issued</label><input type="date" name="DateIssued" value="' + val(s.DateIssued) + '"></div>' +
+      (isNew ? '<div class="field"><label>Start as</label><select name="Status"><option value="Draft">Draft (hidden from staff)</option><option value="Active">Active (visible to staff)</option></select></div>' : '') +
+      '</div></div>' +
+      '<div class="form-section"><h2>Sales target</h2><p>What the staff member is aiming for this month.</p><div class="form-grid">' +
+      '<div class="field"><label>Package target</label><input type="number" min="0" step="1" name="PackageTarget" value="' + val(s.PackageTarget) + '"></div>' +
+      '<div class="field"><label>Gross sales target</label><input type="number" min="0" step="0.01" name="SalesTarget" value="' + val(s.SalesTarget) + '"></div>' +
+      '<div class="field"><label>Additional performance target</label><input name="AdditionalTarget" value="' + val(s.AdditionalTarget) + '" placeholder="e.g. At least 5 Prestige packages"></div>' +
+      '<div class="field span-all"><label>Special incentives</label><textarea name="SpecialIncentives" placeholder="Optional incentives for this month">' + val(s.SpecialIncentives) + '</textarea></div>' +
+      '</div></div>' +
+      '<div class="form-section"><h2>Base compensation</h2><p>Configurable per staff member and month.</p><div class="form-grid">' +
+      '<div class="field"><label>Type</label><select name="BaseType" id="sc-basetype"><option value="FIXED"' + (s.BaseType !== 'HOURLY' ? ' selected' : '') + '>Fixed monthly amount</option><option value="HOURLY"' + (s.BaseType === 'HOURLY' ? ' selected' : '') + '>Hourly rate × hours</option></select></div>' +
+      '<div class="field"><label>Base compensation</label><input type="number" min="0" step="0.01" name="BaseCompensation" id="sc-base" value="' + val(s.BaseCompensation) + '"></div>' +
+      '<div class="field"><label>Expected hours</label><input type="number" min="0" step="0.25" name="ExpectedHours" id="sc-exp" value="' + val(s.ExpectedHours) + '"></div>' +
+      '<div class="field"><label>Actual hours (if applicable)</label><input type="number" min="0" step="0.25" name="ActualHours" value="' + val(s.ActualHours) + '"></div>' +
+      '<div class="field"><label>Hourly rate (if applicable)</label><input type="number" min="0" step="0.01" name="HourlyRate" value="' + val(s.HourlyRate) + '"></div>' +
+      '<div class="field"><label>Effective hourly rate</label><input readonly id="sc-eff" tabindex="-1"><span class="help">Base ÷ expected hours</span></div>' +
+      '</div></div>' +
+      '<div class="form-section"><h2>Commission tiers</h2><p>Add, edit or delete tiers for this month. Changes here never affect other months.</p>' +
+      '<div class="field" style="max-width:520px;margin-bottom:8px"><label>How tiers apply</label>' + structureSelect('CommissionStructure', s.CommissionStructure) + '</div>' +
+      '<div id="sc-tiers"></div></div>' +
+      '<div class="form-section"><h2>Bonus tiers</h2><p>Bonuses based on packages sold.</p>' +
+      '<div class="field" style="max-width:520px;margin-bottom:8px"><label>Bonus rule</label>' + bonusModeSelect('BonusStructure', s.BonusStructure) + '</div>' +
+      '<div id="sc-bonus"></div></div>' +
+      '<div class="form-section"><h2>Notes</h2><div class="field"><textarea name="Notes">' + val(s.Notes) + '</textarea></div>' +
+      '<label class="check" style="margin-top:14px"><input type="checkbox" name="allowDuplicate">Allow a second schedule for this staff member in the same month (dates must not overlap)</label></div>' +
+      '<div class="form-error" id="sc-error" hidden style="margin-top:18px"></div>' +
+      '<div class="toolbar" style="margin-top:22px;justify-content:flex-end">' +
+      '<a class="btn" href="' + (isNew ? '#/schedules' : '#/schedule/' + esc(s.ScheduleID)) + '">Cancel</a>' +
+      '<button type="submit" class="btn primary">Save schedule</button></div>' +
+      '</form>');
+
+    const readTiers = tierEditor($('#sc-tiers', v), tiers);
+    const readBonus = bonusEditor($('#sc-bonus', v), bonusTiers);
+    const form = $('#sched-form', v);
+    const eff = () => {
+      const base = Number($('#sc-base', v).value) || 0, h = Number($('#sc-exp', v).value) || 0;
+      $('#sc-eff', v).value = h > 0 && $('#sc-basetype', v).value === 'FIXED' ? money(Math.round(base / h * 100) / 100) + ' / hour' : '—';
+    };
+    ['#sc-base', '#sc-exp', '#sc-basetype'].forEach((x) => $(x, v).addEventListener('input', eff));
+    eff();
+    let prevMonth = s.Month;
+    $('#sc-month', v).addEventListener('change', (e) => {
+      const m = e.target.value;
+      // Move the dates with the month when they still cover the whole previous month.
+      if ($('#sc-start', v).value === prevMonth + '-01' && $('#sc-end', v).value === lastDay(prevMonth)) {
+        $('#sc-start', v).value = m + '-01';
+        $('#sc-end', v).value = lastDay(m);
+      }
+      prevMonth = m;
+    });
+    $('#sc-staff', v).addEventListener('change', (e) => {
+      const u = users.find((x) => x.UserID === e.target.value);
+      if (!u) return;
+      if (!$('#sc-pos', v).value || isNew) $('#sc-pos', v).value = u.Position || '';
+      if (isNew && u.BaseCompensationDefault) { $('#sc-base', v).value = u.BaseCompensationDefault; eff(); }
+    });
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const vals = formValues(form);
+      const allowDuplicate = vals.allowDuplicate;
+      delete vals.allowDuplicate;
+      const schedule = Object.assign({}, isNew ? {} : s, vals, { ScheduleID: isNew ? '' : s.ScheduleID });
+      const errBox = $('#sc-error', v);
+      errBox.hidden = true;
+      withBusy($('button[type=submit]', form), api('saveSchedule', { schedule: schedule, tiers: readTiers(), bonusTiers: readBonus(), allowDuplicate: allowDuplicate }))
+        .then((r) => { toast(r.message); go('schedule/' + r.data.scheduleId); })
+        .catch((err) => { errBox.textContent = err.message; errBox.hidden = false; errBox.scrollIntoView({ block: 'center', behavior: 'smooth' }); });
+    });
+  }
+  function lastDay(m) {
+    const [y, mo] = m.split('-').map(Number);
+    return m + '-' + String(new Date(Date.UTC(y, mo, 0)).getUTCDate()).padStart(2, '0');
+  }
+
+  /* ================================================================ */
+  /* ADMIN: Commission rules                                          */
+  /* ================================================================ */
+  async function viewRules() {
+    const d = await get('getCommissionRules');
+    const r = d.rules, t = d.template;
+    const statusRow = (key, label, help) => '<label class="check"><input type="checkbox" name="' + key + '"' + (r[key] ? ' checked' : '') + '><span><strong>' + label + '</strong><br><span class="muted small">' + help + '</span></span></label>';
+    const v = setView(pageHead('Commission Rules', 'Commission rules & defaults', '') +
+      '<div class="alert info"><div class="grow">These rules apply to every month that is <strong>not yet approved</strong>. Approved and Paid months are frozen snapshots and never change. ' +
+      'The default template below is only used to pre-fill <strong>new</strong> schedules — each month keeps its own tiers.</div></div>' +
+      '<form id="rules-form" class="card" novalidate>' +
+      '<div class="form-section"><h2>What counts as commissionable?</h2><p>Choose the basis for counting a sale toward sales targets and commission.</p><div style="display:grid;gap:10px">' +
+      Object.keys(d.basisOptions).map((k) => '<label class="check"><input type="radio" name="basis" value="' + k + '"' + (r.basis === k ? ' checked' : '') + '><span>' + esc(d.basisOptions[k]) + (k === 'PAID_ONLY' ? ' <span class="muted small">(recommended default)</span>' : '') + '</span></label>').join('') +
+      '</div></div>' +
+      '<div class="form-section"><h2>Sale statuses</h2><p>Decide whether sales with each status count. A ticked status is counted even if it does not match the basis above; an unticked status is never counted. A single sale can also be forced in or out from the sale form.</p><div style="display:grid;gap:14px">' +
+      statusRow('cancelled', 'Cancelled bookings', 'Booking status “Cancelled”.') +
+      statusRow('refunded', 'Refunded sales', 'Payment status “Refunded”.') +
+      statusRow('unpaid', 'Unpaid sales', 'Payment status “Unpaid”.') +
+      statusRow('complimentary', 'Complimentary sessions', 'Payment status “Complimentary”.') +
+      statusRow('discounted', 'Discounted sales', 'Any sale with a discount. Counts the final paid amount.') +
+      '</div></div>' +
+      '<div class="form-section"><h2>Shared sales</h2><p>How packages are credited when a sale is shared.</p><div class="field" style="max-width:520px"><select name="sharedPackageCredit">' +
+      '<option value="FRACTIONAL"' + (r.sharedPackageCredit !== 'FULL' ? ' selected' : '') + '>By percentage (60% share = 0.6 package)</option>' +
+      '<option value="FULL"' + (r.sharedPackageCredit === 'FULL' ? ' selected' : '') + '>Full package for each staff member</option></select></div></div>' +
+      '<div class="form-section"><h2>Default template for new schedules</h2><p>Sample values only — adjust to your studio. Existing schedules are not changed.</p><div class="form-grid">' +
+      '<div class="field"><label>Default sales target</label><input type="number" min="0" name="salesTarget" value="' + esc(t.salesTarget) + '"></div>' +
+      '<div class="field"><label>Default package target</label><input type="number" min="0" step="1" name="packageTarget" value="' + esc(t.packageTarget) + '"></div>' +
+      '<div class="field"><label>Default base compensation</label><input type="number" min="0" name="baseCompensation" value="' + esc(t.baseCompensation) + '"></div>' +
+      '<div class="field"><label>Default expected hours</label><input type="number" min="0" name="expectedHours" value="' + esc(t.expectedHours) + '"></div>' +
+      '<div class="field span-2"><label>How tiers apply</label>' + structureSelect('commissionStructure', t.commissionStructure) + '</div>' +
+      '<div class="field span-2"><label>Bonus rule</label>' + bonusModeSelect('bonusStructure', t.bonusStructure) + '</div>' +
+      '</div><h3 style="margin:22px 0 4px">Commission tiers</h3><div id="rl-tiers"></div><h3 style="margin:22px 0 4px">Bonus tiers</h3><div id="rl-bonus"></div></div>' +
+      '<div class="form-error" id="rl-error" hidden style="margin-top:18px"></div>' +
+      '<div class="toolbar" style="margin-top:22px;justify-content:flex-end"><button type="submit" class="btn primary">Save rules</button></div></form>');
+    const readTiers = tierEditor($('#rl-tiers', v), t.tiers);
+    const readBonus = bonusEditor($('#rl-bonus', v), t.bonusTiers);
+    $('#rules-form', v).addEventListener('submit', (e) => {
+      e.preventDefault();
+      const f = formValues(e.target);
+      const payload = {
+        rules: { basis: f.basis, sharedPackageCredit: f.sharedPackageCredit, cancelled: f.cancelled, refunded: f.refunded, unpaid: f.unpaid, complimentary: f.complimentary, discounted: f.discounted },
+        template: { salesTarget: f.salesTarget, packageTarget: f.packageTarget, baseCompensation: f.baseCompensation, expectedHours: f.expectedHours,
+          commissionStructure: f.commissionStructure, bonusStructure: f.bonusStructure, tiers: readTiers(), bonusTiers: readBonus() }
+      };
+      const errBox = $('#rl-error', v);
+      errBox.hidden = true;
+      withBusy($('button[type=submit]', e.target), api('saveCommissionRules', payload))
+        .then((res) => { toast(res.message); refreshConfig(); })
+        .catch((err) => { errBox.textContent = err.message; errBox.hidden = false; });
+    });
+  }
+  function refreshConfig() {
+    run('bootstrap', [S.token]).then((r) => { if (r.data && r.data.config) S.config = r.data.config; }).catch(() => {});
+  }
+
+  /* ================================================================ */
+  /* ADMIN: Packages                                                  */
+  /* ================================================================ */
+  async function viewPackages() {
+    const pkgs = await loadPackages(true);
+    const v = setView(pageHead('Packages', 'Studio packages', '<button class="btn gold" id="add-pkg">' + icon('plus') + 'Add package</button>') +
+      '<div class="card">' + table([
+        { key: 'PackageName', label: 'Package', primary: true, render: (p) => '<div class="cell-strong">' + esc(p.PackageName) + '</div><div class="cell-sub">' + esc(p.Description || '') + '</div>' },
+        { key: 'Price', label: 'Price', right: true, render: (p) => money(p.Price) },
+        { key: 'Active', label: 'Status', render: (p) => yesNo(p.Active, 'Active', 'Disabled') },
+        { key: 'actions', label: '', render: (p) => '<div class="actions"><button class="btn sm" data-edit="' + esc(p.PackageID) + '">Edit</button><button class="btn sm" data-toggle="' + esc(p.PackageID) + '">' + (p.Active ? 'Disable' : 'Enable') + '</button></div>' }
+      ], pkgs, { emptyTitle: 'No packages yet' }) +
+      '<p class="muted small" style="margin:14px 0 0">Packages are disabled rather than deleted so past sales keep their history. Each sale stores the package name and price at the time of sale.</p></div>');
+    const edit = (p) => modal({
+      title: p ? 'Edit package' : 'Add package',
+      body: '<div class="field"><label>Package name</label><input name="PackageName" value="' + esc(p ? p.PackageName : '') + '" required></div>' +
+        '<div class="field"><label>Price</label><input name="Price" type="number" min="0" step="0.01" value="' + esc(p ? p.Price : '') + '" required></div>' +
+        '<div class="field"><label>Description</label><input name="Description" value="' + esc(p ? p.Description : '') + '"></div>' +
+        '<label class="check"><input type="checkbox" name="Active"' + (!p || p.Active ? ' checked' : '') + '>Active (available for new sales)</label>',
+      onSubmit: (vals) => api('savePackage', Object.assign({ PackageID: p ? p.PackageID : '' }, vals)).then((r) => { toast(r.message); S.packages = null; route(); })
+    });
+    $('#add-pkg', v).addEventListener('click', () => edit(null));
+    $$('[data-edit]', v).forEach((b) => b.addEventListener('click', () => edit(pkgs.find((p) => p.PackageID === b.getAttribute('data-edit')))));
+    $$('[data-toggle]', v).forEach((b) => b.addEventListener('click', () => {
+      const p = pkgs.find((x) => x.PackageID === b.getAttribute('data-toggle'));
+      withBusy(b, api('savePackage', Object.assign({}, p, { Active: !p.Active }))).then((r) => { toast(r.message); S.packages = null; route(); }).catch(fail);
+    }));
+  }
+
+  /* ================================================================ */
+  /* ADMIN: Reports                                                   */
+  /* ================================================================ */
+  async function viewReports() {
+    const users = await loadUsers();
+    const v = setView(pageHead('Reports', 'Sales & commission report',
+      '<button class="btn" id="rp-csv">' + icon('download') + 'Export CSV</button><button class="btn" id="rp-print">' + icon('print') + 'Print</button>') +
+      '<form class="filters no-print" id="rp-form">' +
+      '<div class="field"><label>Month</label><select name="month">' + monthOptions(S.config.currentMonth, monthRange(), 'All months') + '</select></div>' +
+      '<div class="field"><label>Staff</label><select name="staffId"><option value="">All staff</option>' + staffOptions(users, '', users.map((u) => u.UserID)) + '</select></div>' +
+      '<div class="field"><label>From</label><input type="date" name="from"></div>' +
+      '<div class="field"><label>To</label><input type="date" name="to"></div>' +
+      '<button class="btn primary" type="submit">Run report</button></form>' +
+      '<div id="rp-out">' + loadingHtml + '</div>');
+    let last = null;
+    const runReport = () => {
+      const f = formValues($('#rp-form', v));
+      $('#rp-out', v).innerHTML = loadingHtml;
+      get('getReport', f).then((r) => { last = r; renderReport(r); }).catch((e) => { $('#rp-out', v).innerHTML = '<div class="alert bad">' + esc(e.message) + '</div>'; });
+    };
+    const renderReport = (r) => {
+      const t = r.totals;
+      const parts = [];
+      if (r.filters.month) parts.push(monthLabel(r.filters.month));
+      if (r.filters.staffId) parts.push((users.find((u) => u.UserID === r.filters.staffId) || {}).Name || '');
+      if (r.filters.from || r.filters.to) parts.push((r.filters.from ? dateLabel(r.filters.from) : '…') + ' – ' + (r.filters.to ? dateLabel(r.filters.to) : '…'));
+      $('#rp-out', v).innerHTML =
+        '<div class="print-only" style="margin-bottom:16px"><div class="eyebrow">' + esc(r.studioName) + '</div><h1>Sales & Commission Report</h1><div class="muted">' + esc(parts.join(' · ') || 'All periods') + ' · generated ' + esc(r.generatedAt) + '</div></div>' +
+        '<div class="grid kpis">' +
+        kpi('Gross sales', money(t.sales), t.saleCount + ' sales · avg ' + money(t.averageSale)) +
+        kpi('Packages', qty(t.packageCount)) +
+        '<div class="kpi"><div class="label">Target progress</div><div class="value">' + pct(t.salesProgress) + '</div>' + progressBar(t.salesProgress, 'sm') + '<div class="hint">of ' + money(t.salesTarget) + '</div></div>' +
+        kpi('Commission', money(t.commissionAmount)) +
+        kpi('Bonus', money(t.bonusAmount)) +
+        kpi('Base', money(t.baseCompensation)) +
+        '<div class="kpi feature wide"><div class="label">Total compensation</div><div class="value">' + money(t.totalCompensation) + '</div><div class="hint">' + r.rows.filter((x) => x.isEstimate).length + ' of ' + r.rows.length + ' schedule(s) still estimates</div></div>' +
+        '</div>' +
+        '<div class="card section" style="margin-top:18px">' + table([
+          { key: 'monthLabel', label: 'Month' },
+          { key: 'staffName', label: 'Staff', primary: true, render: (x) => '<span class="cell-strong">' + esc(x.staffName) + '</span>' },
+          { key: 'sales', label: 'Gross sales', right: true, render: (x) => money(x.sales) },
+          { key: 'salesProgress', label: 'Target progress', right: true, render: (x) => pct(x.salesProgress) },
+          { key: 'packageCount', label: 'Packages', right: true, render: (x) => qty(x.packageCount) },
+          { key: 'averageSale', label: 'Avg sale', right: true, render: (x) => money(x.averageSale) },
+          { key: 'commissionAmount', label: 'Commission', right: true, render: (x) => money(x.commissionAmount) },
+          { key: 'bonusAmount', label: 'Bonus', right: true, render: (x) => money(x.bonusAmount) },
+          { key: 'baseCompensation', label: 'Base', right: true, render: (x) => money(x.baseCompensation) },
+          { key: 'totalCompensation', label: 'Total', right: true, render: (x) => '<strong>' + money(x.totalCompensation) + '</strong>' },
+          { key: 'status', label: 'Status', render: (x) => badge(x.status) },
+          { key: 'st', label: '', render: (x) => '<a class="btn sm no-print" href="#/statement/' + esc(x.scheduleId) + '">Statement</a>' }
+        ], r.rows, {
+          emptyTitle: 'No issued schedules match these filters',
+          footer: r.rows.length ? { monthLabel: 'Total', sales: money(t.sales), salesProgress: pct(t.salesProgress), packageCount: qty(t.packageCount), averageSale: money(t.averageSale),
+            commissionAmount: money(t.commissionAmount), bonusAmount: money(t.bonusAmount), baseCompensation: money(t.baseCompensation), totalCompensation: money(t.totalCompensation) } : null
+        }) + '</div>';
+    };
+    $('#rp-form', v).addEventListener('submit', (e) => { e.preventDefault(); runReport(); });
+    $('#rp-print', v).addEventListener('click', () => window.print());
+    $('#rp-csv', v).addEventListener('click', () => {
+      if (!last || !last.rows.length) return toast('Run a report with results first.', 'error');
+      const head = ['Month', 'Staff', 'Status', 'Period start', 'Period end', 'Gross sales', 'Sales target', 'Sales progress %', 'Packages', 'Package target', 'Sales count', 'Average sale', 'Commission', 'Bonus', 'Base', 'Total compensation', 'Estimate'];
+      const lines = [head].concat(last.rows.map((x) => [x.month, x.staffName, x.status, x.startDate, x.endDate, x.sales, x.salesTarget, x.salesProgress, x.packageCount, x.packageTarget, x.saleCount, x.averageSale, x.commissionAmount, x.bonusAmount, x.baseCompensation, x.totalCompensation, x.isEstimate ? 'Yes' : 'No']));
+      const csv = lines.map((l) => l.map((c) => {
+        let s = c === null || c === undefined ? '' : String(c);
+        if (/^[=+\-@]/.test(s) && isNaN(Number(s))) s = "'" + s;
+        return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }).join(',')).join('\r\n');
+      downloadFile('clicklounge-report-' + (last.filters.month || 'all') + '.csv', '﻿' + csv, 'text/csv;charset=utf-8');
+    });
+    runReport();
+  }
+
+  function downloadFile(name, content, type) {
+    try {
+      const url = URL.createObjectURL(new Blob([content], { type: type }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+      toast('Downloaded ' + name);
+    } catch (e) {
+      modal({ title: 'Copy CSV', body: '<p class="muted small" style="margin:0">Your browser blocked the download. Copy the text below into a .csv file.</p><textarea style="min-height:240px">' + esc(content) + '</textarea>', hideCancel: false, cancelLabel: 'Close' });
+    }
+  }
+
+  /* ================================================================ */
+  /* ADMIN: Audit log                                                 */
+  /* ================================================================ */
+  async function viewAudit(search) {
+    search = search || '';
+    const d = await get('getAuditLog', { search: search, limit: 300 });
+    const v = setView(pageHead('Audit Log', 'Audit log', '') +
+      '<form class="filters" id="au-form"><div class="field" style="flex:1 1 300px"><label>Search</label><input name="q" value="' + esc(search) + '" placeholder="Name, action, record ID, reason…"></div><button class="btn primary">Search</button></form>' +
+      '<p class="muted small">' + d.total + ' entr' + (d.total === 1 ? 'y' : 'ies') + (d.total > d.entries.length ? ' (showing latest ' + d.entries.length + ')' : '') + '. The full log is in the AuditLog sheet.</p>' +
+      '<div class="card">' + table([
+        { key: 'Timestamp', label: 'When', render: (e) => '<span class="nowrap small">' + esc(e.Timestamp) + '</span>' },
+        { key: 'User', label: 'User', render: (e) => '<span class="small">' + esc(e.User) + '</span>' },
+        { key: 'Action', label: 'Action', primary: true, render: (e) => '<div>' + esc(e.Action) + '</div>' + (e.Reason ? '<div class="cell-sub">Reason: ' + esc(e.Reason) + '</div>' : '') },
+        { key: 'RecordID', label: 'Record', render: (e) => '<span class="small muted">' + esc(e.RecordID) + '</span>' }
+      ], d.entries, { emptyTitle: 'No audit entries found' }) + '</div>');
+    $('#au-form', v).addEventListener('submit', (e) => { e.preventDefault(); go('audit/' + encodeURIComponent($('input[name=q]', e.target).value.trim())); });
+  }
+
+  /* ================================================================ */
+  /* ADMIN: Settings                                                  */
+  /* ================================================================ */
+  async function viewSettings() {
+    const s = await get('getSettings');
+    const v = setView(pageHead('Settings', 'Studio settings', '') +
+      '<form class="card" id="set-form" novalidate><div class="form-grid two">' +
+      '<div class="field"><label>Studio name</label><input name="StudioName" value="' + esc(s.StudioName) + '"></div>' +
+      '<div class="field"><label>Timezone</label><input name="Timezone" value="' + esc(s.Timezone) + '"><span class="help">Example: Asia/Manila. Keep the same as appsscript.json.</span></div>' +
+      '<div class="field"><label>Currency code</label><input name="Currency" value="' + esc(s.Currency) + '" maxlength="3"></div>' +
+      '<div class="field"><label>Currency symbol</label><input name="CurrencySymbol" value="' + esc(s.CurrencySymbol) + '" maxlength="5"></div>' +
+      '<div class="field span-2"><label>Admin emails</label><textarea name="AdminEmails">' + esc(s.AdminEmails) + '</textarea><span class="help">Comma-separated. These accounts get full Admin access. Stored in the Config sheet.</span></div>' +
+      '<div class="field"><label>App version</label><input readonly value="' + esc(s.AppVersion) + '"></div>' +
+      '</div><div class="form-error" id="set-error" hidden style="margin-top:16px"></div>' +
+      '<div class="toolbar" style="margin-top:20px;justify-content:flex-end"><button class="btn primary" type="submit">Save settings</button></div></form>' +
+      '<div class="card section"><h2>Backups</h2><p class="muted small" style="margin:6px 0 0">All data lives in the Google Sheet. Use <strong>File → Make a copy</strong> monthly (after marking commissions Paid), or <strong>File → Download → Microsoft Excel</strong>. Version history is under <strong>File → Version history</strong>.</p></div>');
+    $('#set-form', v).addEventListener('submit', (e) => {
+      e.preventDefault();
+      const errBox = $('#set-error', v);
+      errBox.hidden = true;
+      withBusy($('button[type=submit]', e.target), api('saveSettings', formValues(e.target)))
+        .then((r) => { toast(r.message); refreshConfig(); S.users = null; })
+        .catch((err) => { errBox.textContent = err.message; errBox.hidden = false; });
+    });
+  }
+
+  /* ================================================================ */
+  /* Statement (admin & staff)                                        */
+  /* ================================================================ */
+  async function viewStatement(id) {
+    const d = await get('getStatement', id);
+    const s = d.schedule, c = d.calc;
+    const back = S.user.isAdmin ? '#/schedule/' + esc(id) : '#/history';
+    const rows = [
+      ['Sales target', money(c.salesTarget)],
+      ['Actual sales', money(c.sales)],
+      ['Sales progress', pct(c.salesProgress) + (c.targetExceeded ? ' — target exceeded by ' + money(c.amountAboveTarget) : c.targetReached ? ' — target reached' : ' — ' + money(c.remainingSales) + ' remaining')],
+      ['Package target', qty(c.packageTarget)],
+      ['Packages sold', qty(c.packageCount)],
+      ['Commission', money(c.commissionAmount) + ' <span class="muted small">(' + esc(c.commissionTier) + ')</span>'],
+      ['Bonus', money(c.bonusAmount) + ' <span class="muted small">(' + esc(c.bonusTier) + ')</span>'],
+      ['Base compensation', money(c.baseCompensation)]
+    ];
+    setView('<div class="toolbar no-print" style="margin-bottom:18px"><a class="btn" href="' + back + '">← Back</a><button class="btn primary" onclick="window.print()">' + icon('print') + 'Print statement</button></div>' +
+      '<article class="statement">' +
+      '<div class="watermark' + (c.isEstimate ? '' : ' final') + '">' + (c.isEstimate ? 'Estimate' : esc(c.status)) + '</div>' +
+      '<div class="st-head"><div class="st-studio">' + esc(d.studioName) + '</div><div class="st-title">Monthly Sales &amp; Commission Statement</div></div>' +
+      '<dl class="dl"><dt>Staff</dt><dd>' + esc(d.staffName) + '</dd><dt>Position</dt><dd>' + esc(s.Position || '—') + '</dd>' +
+      '<dt>Period</dt><dd>' + esc(d.periodLabel) + ' (' + esc(d.monthLabel) + ')</dd><dt>Date issued</dt><dd>' + esc(dateLabel(s.DateIssued)) + '</dd>' +
+      '<dt>Status</dt><dd>' + badge(c.status) + (c.isEstimate ? ' <span class="muted small">Estimated — not yet finalized</span>' : '') + '</dd></dl>' +
+      '<h3>Summary</h3><table class="rtable keep"><tbody>' + rows.map((r) => '<tr><td data-label="">' + r[0] + '</td><td data-label="" class="right num">' + r[1] + '</td></tr>').join('') +
+      '<tr class="st-total"><td data-label="">TOTAL</td><td data-label="" class="right num">' + money(c.totalCompensation) + '</td></tr></tbody></table>' +
+      (s.AdditionalTarget ? '<h3>Additional performance target</h3><p style="margin:0">' + esc(s.AdditionalTarget) + '</p>' : '') +
+      (s.SpecialIncentives ? '<h3>Special incentives</h3><p style="margin:0">' + esc(s.SpecialIncentives) + '</p>' : '') +
+      '<h3>Commission structure</h3><p class="muted small" style="margin:0 0 8px">' + esc(STRUCTURE_LABEL[s.CommissionStructure] || '') + '. Commissionable sales: ' + esc(d.commissionBasisLabel) + '.</p>' + tiersTable(d.tiers, c) +
+      '<h3>Bonus structure</h3><p class="muted small" style="margin:0 0 8px">' + esc(BONUS_LABEL[s.BonusStructure] || '') + '.</p>' + bonusTable(d.bonusTiers, c) +
+      '<h3>Sales credited (' + d.sales.length + ')</h3>' + table([
+        { key: 'saleDate', label: 'Date', render: (x) => esc(dateLabel(x.saleDate)) },
+        { key: 'clientName', label: 'Client', render: (x) => esc(x.clientName) },
+        { key: 'packageName', label: 'Package', render: (x) => esc(x.packageName) },
+        { key: 'share', label: 'Share', right: true, render: (x) => x.shared ? pct(x.sharePercentage) : '100%' },
+        { key: 'creditedAmount', label: 'Credited', right: true, render: (x) => money(x.creditedAmount) },
+        { key: 'commissionable', label: 'Counted', render: (x) => x.commissionable ? 'Yes' : 'No — ' + esc(x.paymentStatus + ' / ' + x.bookingStatus) }
+      ], d.sales, { emptyTitle: 'No sales in this period' }) +
+      '<p class="muted small" style="margin-top:22px">' +
+      (c.approvedAt ? 'Approved ' + esc(c.approvedAt) + ' by ' + esc(c.approvedBy) + '. ' : '') +
+      (c.paidAt ? 'Paid ' + esc(c.paidAt) + ' by ' + esc(c.paidBy) + '. ' : '') +
+      'Generated ' + esc(d.generatedAt) + '. This statement is issued under the Monthly Sales Target &amp; Commission Schedule for this period.</p>' +
+      '<div class="sig"><div>Prepared by (Admin)</div><div>Received by (Staff)</div></div>' +
+      '</article>');
+  }
+
+  /* ================================================================ */
+  /* STAFF views                                                      */
+  /* ================================================================ */
+  function scheduleSwitcher(list, current, routeName) {
+    if (!list.length) return '';
+    return '<select id="my-sched" aria-label="Month">' + list.map((x) => '<option value="' + esc(x.scheduleId) + '"' + (x.scheduleId === current ? ' selected' : '') + '>' +
+      esc(x.label) + (x.status !== 'Active' ? ' · ' + esc(x.status) : '') + '</option>').join('') + '</select>';
+  }
+  function bindSwitcher(v, routeName) {
+    const sel = $('#my-sched', v);
+    if (sel) sel.addEventListener('change', () => go(routeName + '/' + sel.value));
+  }
+  const noSchedule = '<div class="card"><div class="empty"><div class="big">No schedule issued yet</div><p>Your Monthly Sales Target &amp; Commission Schedule will appear here once the Admin issues it.</p></div></div>';
+
+  async function viewMyDashboard(scheduleId) {
+    const d = await get('getMyDashboard', scheduleId || '');
+    const first = S.user.name;
+    if (!d.detail) return setView(pageHead('My Dashboard', 'Hi, ' + first) + noSchedule);
+    const c = d.detail.calc;
+    const v = setView(pageHead(monthLabel(d.detail.schedule.Month) + ' · ' + dateLabel(d.detail.schedule.StartDate) + ' – ' + dateLabel(d.detail.schedule.EndDate), 'Hi, ' + first,
+      scheduleSwitcher(d.schedules, d.detail.schedule.ScheduleID)) +
+      estimateBanner(c) + calcCards(c, true) +
+      (d.detail.schedule.AdditionalTarget ? '<div class="card section" style="margin-top:18px"><h2>Additional target</h2><p style="margin:6px 0 0">' + esc(d.detail.schedule.AdditionalTarget) + '</p></div>' : '') +
+      (d.detail.schedule.SpecialIncentives ? '<div class="card section"><h2>Special incentives</h2><p style="margin:6px 0 0">' + esc(d.detail.schedule.SpecialIncentives) + '</p></div>' : '') +
+      '<div class="toolbar" style="margin-top:18px"><a class="btn" href="#/my-sales/' + esc(d.detail.schedule.ScheduleID) + '">View my sales</a><a class="btn" href="#/my-schedule/' + esc(d.detail.schedule.ScheduleID) + '">View my schedule</a></div>');
+    bindSwitcher(v, 'home');
+  }
+
+  async function viewMySales(scheduleId) {
+    const dash = await get('getMyDashboard', scheduleId || '');
+    if (!dash.detail) return setView(pageHead('My Sales', 'My sales') + noSchedule);
+    const id = dash.detail.schedule.ScheduleID;
+    const data = await get('listSales', { scheduleId: id });
+    const counted = data.sales.filter((s) => s.commissionable);
+    const v = setView(pageHead('My Sales · ' + monthLabel(dash.detail.schedule.Month), 'My sales', scheduleSwitcher(dash.schedules, id)) +
+      '<div class="grid kpis three" style="margin-bottom:18px">' +
+      kpi('Commissionable sales', money(dash.detail.calc.sales), counted.length + ' sale(s)') +
+      kpi('Packages', qty(dash.detail.calc.packageCount)) +
+      kpi('Not counted yet', money(dash.detail.calc.nonCommissionableSales), esc(S.config.commissionBasisLabel || '')) +
+      '</div><div class="card">' + table([
+        { key: 'saleDate', label: 'Date', render: (x) => '<span class="nowrap">' + esc(dateLabel(x.saleDate)) + '</span>' },
+        { key: 'clientName', label: 'Client', primary: true, render: (x) => '<span class="cell-strong">' + esc(x.clientName) + '</span>' },
+        { key: 'packageName', label: 'Package', render: (x) => esc(x.packageName) },
+        { key: 'share', label: 'My share', right: true, render: (x) => x.shared ? pct(x.sharePercentage) + ' of ' + money(x.finalAmount) : '100%' },
+        { key: 'creditedAmount', label: 'Credited', right: true, render: (x) => '<strong>' + money(x.creditedAmount) + '</strong>' },
+        { key: 'status', label: 'Status', render: (x) => '<span class="small">' + esc(x.paymentStatus) + ' · ' + esc(x.bookingStatus) + '</span>' },
+        { key: 'commissionable', label: 'Counts', render: (x) => yesNo(x.commissionable, 'Counts', 'Not yet') }
+      ], data.sales, { emptyTitle: 'No sales yet this period' }) + '</div>');
+    bindSwitcher(v, 'my-sales');
+  }
+
+  async function viewMySchedule(scheduleId) {
+    const d = await get('getMyDashboard', scheduleId || '');
+    if (!d.detail) return setView(pageHead('My Monthly Schedule', 'My monthly schedule') + noSchedule);
+    const v = setView(pageHead('Monthly Sales Target & Commission Schedule', monthLabel(d.detail.schedule.Month), scheduleSwitcher(d.schedules, d.detail.schedule.ScheduleID)) +
+      '<div class="card"><div class="card-head"><h2>Schedule</h2>' + badge(d.detail.schedule.Status) + '</div>' + scheduleInfo(d.detail) + '</div>' + rulesCards(d.detail) +
+      '<p class="muted small" style="margin-top:14px">Commissionable sales: ' + esc(S.config.commissionBasisLabel || '') + '. The highlighted rows show where you are now.</p>');
+    bindSwitcher(v, 'my-schedule');
+  }
+
+  async function viewMyCommission(scheduleId) {
+    if (scheduleId) return viewStatement(scheduleId);
+    const d = await get('getMyDashboard', '');
+    if (!d.detail) return setView(pageHead('My Commission', 'My commission') + noSchedule);
+    return viewStatement(d.detail.schedule.ScheduleID);
+  }
+
+  async function viewHistory() {
+    const rows = await get('getMySchedules');
+    setView(pageHead('History', 'My performance history') + '<div class="card">' + table([
+      { key: 'monthLabel', label: 'Month', primary: true, render: (x) => '<span class="cell-strong">' + esc(x.monthLabel) + '</span>' },
+      { key: 'sales', label: 'Sales', right: true, render: (x) => money(x.sales) },
+      { key: 'salesProgress', label: 'Progress', right: true, render: (x) => pct(x.salesProgress) },
+      { key: 'packageCount', label: 'Packages', right: true, render: (x) => qty(x.packageCount) + ' / ' + qty(x.packageTarget) },
+      { key: 'commissionAmount', label: 'Commission', right: true, render: (x) => money(x.commissionAmount) },
+      { key: 'bonusAmount', label: 'Bonus', right: true, render: (x) => money(x.bonusAmount) },
+      { key: 'totalCompensation', label: 'Total', right: true, render: (x) => '<strong>' + money(x.totalCompensation) + '</strong>' + (x.isEstimate ? '<div class="cell-sub">estimate</div>' : '') },
+      { key: 'status', label: 'Status', render: (x) => badge(x.status) },
+      { key: 'st', label: '', render: (x) => '<a class="btn sm" href="#/statement/' + esc(x.scheduleId) + '">Statement</a>' }
+    ], rows, { emptyTitle: 'No history yet', rowLink: (x) => '#/statement/' + x.scheduleId }) + '</div>');
+    bindRowLinks($('#view'));
+  }
+
+  /* ================================================================ */
+  /* Boot                                                             */
+  /* ================================================================ */
+  run('bootstrap', [store.get(TOKEN_KEY)])
+    .then((res) => {
+      const d = res.data;
+      S.config = d.config || {};
+      if (d.needsLogin) {
+        showLogin(d.message || '');
+        if (d.googleEmail) $('#login-email').value = d.googleEmail;
+        return;
+      }
+      startApp(d);
+    })
+    .catch((err) => {
+      $('.spinner', $('#boot')).remove();
+      $('#boot-msg').textContent = err.message;
+    });
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ClickLounge Tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, system-ui, sans-serif; margin: 24px; color: #1a1a1a; background: #faf9f7; }
+    h1 { font-size: 20px; } h2 { font-size: 16px; margin-top: 28px; }
+    .row { padding: 6px 10px; border-bottom: 1px solid #e8e5e0; display: flex; gap: 10px; }
+    .pass { color: #2f7d4f; font-weight: 600; min-width: 44px; } .fail { color: #b3261e; font-weight: 700; min-width: 44px; }
+    .detail { color: #6b6b6b; font-size: 12px; }
+    #summary { font-size: 16px; font-weight: 700; padding: 12px; border-radius: 10px; background: #fff; border: 1px solid #e8e5e0; }
+  </style>
+</head>
+<body>
+  <h1>ClickLounge Sales Dashboard — automated tests</h1>
+  <div id="summary">Running…</div>
+  <h2>Commission unit tests (src/Tests.gs → runCommissionTests)</h2>
+  <div id="unit"></div>
+  <h2>End-to-end tests (real server code + mocked Google services)</h2>
+  <div id="e2e"></div>
+  <script src="appsscript-mock.js"></script>
+  <script>
+    const render = (el, rows) => {
+      el.innerHTML = rows.map((r) => '<div class="row"><span class="' + (r.pass ? 'pass">PASS' : 'fail">FAIL') + '</span><span>' +
+        r.name.replace(/</g, '&lt;') + (r.detail ? '<div class="detail">' + String(r.detail).replace(/</g, '&lt;') + '</div>' : '') + '</span></div>').join('');
+    };
+    (async () => {
+      const origLog = console.log;
+      console.log = () => {};
+      try {
+        await loadServerFiles('../src/', ['e2e-tests.js']);
+        const unit = runCommissionTests().results.map((r) => ({
+          name: r.name, pass: r.pass, detail: r.pass ? '' : 'expected ' + JSON.stringify(r.expected) + ', got ' + JSON.stringify(r.actual)
+        }));
+        render(document.getElementById('unit'), unit);
+        const e2e = runE2E();
+        render(document.getElementById('e2e'), e2e);
+        const all = unit.concat(e2e);
+        const failed = all.filter((r) => !r.pass).length;
+        document.getElementById('summary').textContent = (all.length - failed) + ' / ' + all.length + ' tests passed' + (failed ? ' — ' + failed + ' FAILED' : ' ✓');
+        document.getElementById('summary').style.color = failed ? '#b3261e' : '#2f7d4f';
+      } catch (e) {
+        document.getElementById('summary').textContent = 'Harness error: ' + e.message + '\n' + e.stack;
+      } finally {
+        console.log = origLog;
+      }
+    })();
+  </script>
+</body>
+</html>

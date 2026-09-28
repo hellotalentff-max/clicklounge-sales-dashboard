@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>ClickLounge Sales Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <?!= include_('CSS'); ?>
+</head>
+<body>
+  <!-- Loading -->
+  <div id="boot" class="boot">
+    <div>
+      <div class="brand-mark">Click<span>Lounge</span></div>
+      <div class="eyebrow" style="margin-top:6px">Sales Dashboard</div>
+      <div class="spinner"></div>
+      <p id="boot-msg" class="muted small" style="max-width:420px;margin:18px auto 0"></p>
+    </div>
+  </div>
+
+  <!-- Sign in (access code) -->
+  <section id="login" class="login-wrap" hidden>
+    <div class="login-card">
+      <div class="brand-mark">Click<span>Lounge</span></div>
+      <div class="eyebrow" id="login-studio">Sales Dashboard</div>
+      <p class="muted small" id="login-note" style="margin:14px 0 0">Sign in with your work email and the access code from the Admin.</p>
+      <form id="login-form" autocomplete="on">
+        <div class="field">
+          <label for="login-email">Email</label>
+          <input id="login-email" name="email" type="email" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label for="login-code">Access code</label>
+          <input id="login-code" name="code" type="password" autocomplete="current-password" required>
+        </div>
+        <div id="login-error" class="form-error" hidden></div>
+        <button class="btn primary" type="submit" style="justify-content:center">Sign in</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- App shell -->
+  <div id="shell" class="shell" hidden>
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark">Click<span>Lounge</span></div>
+        <div class="sub" id="side-studio">Sales Dashboard</div>
+      </div>
+      <nav class="nav" id="nav" aria-label="Main"></nav>
+      <div class="side-user">
+        <div class="who" id="side-name"></div>
+        <div class="role" id="side-role"></div>
+        <div class="links">
+          <a href="#" id="change-code-link">Change access code</a>
+          <a href="#" id="logout-link">Sign out</a>
+        </div>
+      </div>
+    </aside>
+    <div class="scrim" id="scrim"></div>
+    <div class="main">
+      <header class="topbar">
+        <button class="menu-btn" id="menu-btn" aria-label="Open menu">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="brand-mark">Click<span>Lounge</span></div>
+      </header>
+      <main class="view" id="view"></main>
+    </div>
+  </div>
+
+  <div id="modal-root"></div>
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <?!= include_('JS'); ?>
+</body>
+</html>
