@@ -17,7 +17,7 @@ page in the real deployment.
 
 Run all of them at `http://localhost:8765/dev/tests.html` (see README → Local testing).
 
-**Result: 109 / 109 passed.**
+**Result: 110 / 110 passed.**
 
 ## Specification test cases (§38)
 

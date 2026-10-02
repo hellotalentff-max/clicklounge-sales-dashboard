@@ -130,12 +130,9 @@ function getMyDashboard(token, scheduleId) {
       .sort(function (a, b) { return a.StartDate < b.StartDate ? 1 : -1; });
     const today = todayStr_();
     let current = null;
-    if (scheduleId) {
-      current = mine.find(function (s) { return s.ScheduleID === scheduleId; });
-      if (!current) throw appError_('Schedule not found.', 'NOT_FOUND');
-    } else {
-      current = mine.find(function (s) { return s.StartDate <= today && today <= s.EndDate; }) || mine[0] || null;
-    }
+    if (scheduleId) current = mine.find(function (s) { return s.ScheduleID === scheduleId; }) || null;
+    // Unknown, someone else's, or not-yet-issued IDs fall back to the user's own current schedule.
+    if (!current) current = mine.find(function (s) { return s.StartDate <= today && today <= s.EndDate; }) || mine[0] || null;
     return {
       schedules: mine.map(function (s) {
         return { scheduleId: s.ScheduleID, month: s.Month, label: monthLabel_(s.Month), status: s.Status };

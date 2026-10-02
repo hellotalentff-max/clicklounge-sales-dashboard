@@ -764,13 +764,19 @@
     const routes = S.user.isAdmin ? ADMIN_ROUTES : STAFF_ROUTES;
     const home = S.user.isAdmin ? 'dashboard' : 'home';
     let name = parts[0] || home;
-    if (!routes[name]) name = home;
+    let args = parts.slice(1);
+    if (!routes[name]) {
+      // e.g. an admin page address left over from a previous sign-in on this device.
+      name = home;
+      args = [];
+      try { history.replaceState(null, '', location.href.split('#')[0] + '#/' + home); } catch (e) { /* cosmetic only */ }
+    }
     const navKey = NAV_PARENT[name] !== undefined ? NAV_PARENT[name] : name;
     $$('#nav a').forEach((a) => a.classList.toggle('active', a.getAttribute('data-route') === navKey));
     document.body.classList.remove('nav-open');
     setView(loadingHtml);
     window.scrollTo(0, 0);
-    Promise.resolve().then(() => routes[name].apply(null, parts.slice(1))).catch(errorView);
+    Promise.resolve().then(() => routes[name].apply(null, args)).catch(errorView);
   }
   const go = (hash) => { if (location.hash === '#/' + hash) route(); else location.hash = '#/' + hash; };
 
@@ -790,6 +796,8 @@
     S.token = null;
     S.user = null;
     store.del(TOKEN_KEY);
+    // The next person to sign in on this device starts on their own home page.
+    try { if (location.hash) history.replaceState(null, '', location.href.split('#')[0]); } catch (e) { location.hash = ''; }
     $$('.modal-backdrop').forEach((m) => m.remove());
     showLogin(message);
   }

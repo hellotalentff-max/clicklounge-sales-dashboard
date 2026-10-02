@@ -145,6 +145,11 @@ function runE2E() {
     try { setupDemoData(); } catch (e) { threw = true; }
     eq(threw, true);
   });
+  t('Staff given another staff member\'s schedule ID sees their own dashboard (no error, no leak)', () => {
+    const d = ok(getMyDashboard(staffA, bNow));
+    eq([d.detail.staffName, d.detail.schedule.StaffID], ['Staff A', A.UserID]);
+    eq(ok(getMyDashboard(staffA, 'SCH-DOES-NOT-EXIST')).detail.staffName, 'Staff A');
+  });
   t('Staff sees own dashboard only', () => {
     const d = ok(getMyDashboard(staffA));
     eq(d.detail.staffName, 'Staff A');
