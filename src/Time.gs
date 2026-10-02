@@ -88,6 +88,65 @@ function openShiftHours_(entry, nowStr) {
   return computeEntryHours_(entry.ClockIn, nowStr, breakMins);
 }
 
+/* ------------------------------------------------------------------ */
+/* "Are you still working?" checks                                     */
+/* ------------------------------------------------------------------ */
+
+/** Check settings from Config (interval 0 = checks switched off). */
+function timeCheckSettings_() {
+  return {
+    interval: Math.max(0, Number(getConfigValue_('TimeCheckIntervalMinutes', 30)) || 0),
+    window: Math.max(1, Number(getConfigValue_('TimeCheckResponseMinutes', 15)) || 15)
+  };
+}
+
+/**
+ * pure — Where an open shift stands with its still-working checks.
+ * Checks fall due every `interval` minutes after the last confirmation (or
+ * clock-in). A check not confirmed within `window` minutes is missed. Checks
+ * pause during breaks; ending a break counts as a confirmation.
+ *  status: off | paused | ok | due (answer now) | missed (overdue, not answered)
+ */
+function checkStatus_(entry, nowStr, interval, window) {
+  const stored = Number(entry && entry.MissedChecks) || 0;
+  const base = { status: 'off', pendingMissed: 0, missedTimes: [], totalMissed: stored,
+    confirmed: Number(entry && entry.ConfirmedChecks) || 0, intervalMinutes: interval, windowMinutes: window };
+  if (!entry || entry.ClockOut || !interval) return base;
+  if (entry.BreakStart) return Object.assign(base, { status: 'paused' });
+  const I = interval * 60000;
+  const W = Math.min(window, interval) * 60000;
+  const anchor = parseDateTime_(entry.LastConfirmedAt || entry.ClockIn);
+  const now = parseDateTime_(nowStr);
+  const n = Math.floor((now - anchor) / I); // checks that have fallen due
+  if (n < 1) return Object.assign(base, { status: 'ok', nextCheckAt: formatDateTime_(anchor + I) });
+  const lastDue = anchor + n * I;
+  const inWindow = now < lastDue + W;
+  const missed = inWindow ? n - 1 : n;
+  const times = [];
+  for (let k = 1; k <= missed; k++) times.push(formatDateTime_(anchor + k * I));
+  return Object.assign(base, {
+    status: inWindow ? 'due' : 'missed',
+    dueAt: formatDateTime_(lastDue),
+    deadline: formatDateTime_(lastDue + W),
+    nextCheckAt: formatDateTime_(lastDue + I),
+    pendingMissed: missed,
+    missedTimes: times,
+    totalMissed: stored + missed
+  });
+}
+
+/**
+ * Stores any missed checks on the entry before its anchor moves (confirm,
+ * break, clock-out), so they stay visible to the Admin. Returns the patch.
+ */
+function settleChecks_(entry, nowStr) {
+  const s = timeCheckSettings_();
+  const c = checkStatus_(entry, nowStr, s.interval, s.window);
+  if (!c.pendingMissed) return {};
+  const detail = [entry.MissedDetail].concat(c.missedTimes.map(function (t) { return timeLabel_(t); })).filter(Boolean).join(', ');
+  return { MissedChecks: c.totalMissed, MissedDetail: truncate_(detail, 1000) };
+}
+
 function publicTimeEntry_(l, nowStr) {
   const out = publicRow_(l);
   out.inLabel = timeLabel_(l.ClockIn);
@@ -98,7 +157,14 @@ function publicTimeEntry_(l, nowStr) {
   if (out.open) {
     out.hoursSoFar = openShiftHours_(l, nowStr);
     out.longOpen = out.hoursSoFar >= OPEN_SHIFT_WARNING_HOURS;
+    const s = timeCheckSettings_();
+    out.check = checkStatus_(l, nowStr, s.interval, s.window);
+    if (out.check.pendingMissed) {
+      out.MissedDetail = [l.MissedDetail].concat(out.check.missedTimes.map(function (t) { return timeLabel_(t); })).filter(Boolean).join(', ');
+    }
   }
+  out.missedChecks = out.open ? out.check.totalMissed : Number(l.MissedChecks) || 0;
+  out.confirmedChecks = Number(l.ConfirmedChecks) || 0;
   return out;
 }
 
@@ -194,13 +260,30 @@ function toggleBreak(token) {
       let message;
       if (open.BreakStart) {
         const mins = Math.max(0, Math.round((parseDateTime_(now) - parseDateTime_(open.BreakStart)) / 60000));
-        updateRow_(SHEET.TIME, 'LogID', open.LogID, { BreakMinutes: (Number(open.BreakMinutes) || 0) + mins, BreakStart: '', UpdatedAt: now });
+        updateRow_(SHEET.TIME, 'LogID', open.LogID, { BreakMinutes: (Number(open.BreakMinutes) || 0) + mins, BreakStart: '', LastConfirmedAt: now, UpdatedAt: now });
         message = 'Break ended (' + mins + ' min).';
       } else {
-        updateRow_(SHEET.TIME, 'LogID', open.LogID, { BreakStart: now, UpdatedAt: now });
+        updateRow_(SHEET.TIME, 'LogID', open.LogID, Object.assign(settleChecks_(open, now), { BreakStart: now, UpdatedAt: now }));
         message = 'Break started at ' + timeLabel_(now) + '.';
       }
       return ok_(timeClockState_(user.userId), message);
+    });
+  });
+}
+
+/** "Yes, I'm still working" — records the confirmation (late answers still count as missed). */
+function confirmStillWorking(token) {
+  return api_(function () {
+    const user = requireUser_(token);
+    return withLock_(function () {
+      const open = openEntry_(user.userId);
+      if (!open) throw appError_('You are not clocked in.');
+      const now = nowStr_();
+      const patch = Object.assign(settleChecks_(open, now), {
+        LastConfirmedAt: now, ConfirmedChecks: (Number(open.ConfirmedChecks) || 0) + 1, UpdatedAt: now
+      });
+      updateRow_(SHEET.TIME, 'LogID', open.LogID, patch);
+      return ok_(timeClockState_(user.userId), patch.MissedChecks ? 'Thanks — confirmed. The missed check was noted for the Admin.' : 'Thanks — confirmed.');
     });
   });
 }
@@ -216,10 +299,10 @@ function clockOut(token, note) {
       if (open.BreakStart) breakMins += Math.max(0, Math.round((parseDateTime_(now) - parseDateTime_(open.BreakStart)) / 60000));
       const hours = computeEntryHours_(open.ClockIn, now, breakMins);
       const extra = str_(note, 'Note', { maxLength: 300 });
-      updateRow_(SHEET.TIME, 'LogID', open.LogID, {
+      updateRow_(SHEET.TIME, 'LogID', open.LogID, Object.assign(open.BreakStart ? {} : settleChecks_(open, now), {
         ClockOut: now, BreakMinutes: breakMins, BreakStart: '', Hours: hours, UpdatedAt: now,
         Notes: [open.Notes, extra].filter(Boolean).join(' · ')
-      });
+      }));
       return ok_(timeClockState_(user.userId), 'Clocked out at ' + timeLabel_(now) + ' — ' + hours + ' h worked.');
     });
   });
@@ -254,8 +337,10 @@ function getTimeOverview(token, filters) {
       });
       const expected = scheds.length ? round2_(sum_(scheds, function (s) { return s.ExpectedHours; })) : null;
       const logged = sumLoggedHours_(logs, u.UserID, from, to);
+      const missedChecks = sum_(logs.filter(function (l) { return l.StaffID === u.UserID && l.Date >= from && l.Date <= to; }),
+        function (l) { return publicTimeEntry_(l, now).missedChecks; });
       return {
-        staffId: u.UserID, staffName: u.Name, expectedHours: expected, loggedHours: logged.hours, entries: logged.entries,
+        staffId: u.UserID, staffName: u.Name, expectedHours: expected, loggedHours: logged.hours, entries: logged.entries, missedChecks: missedChecks,
         hoursProgress: progress_(logged.hours, expected),
         hoursRemaining: expected === null ? null : round2_(Math.max(0, expected - logged.hours)),
         clockedIn: clockedIn.some(function (c) { return c.StaffID === u.UserID; })

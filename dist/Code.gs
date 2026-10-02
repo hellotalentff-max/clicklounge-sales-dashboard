@@ -103,7 +103,8 @@ function getAdminDashboard(token, month) {
       staffWithoutSchedule: missing,
       pendingApproval: rows_(SHEET.SCHEDULES).filter(function (s) { return s.Status === SCHEDULE_STATUS.PENDING; }).length,
       clockedIn: rows_(SHEET.TIME).filter(function (l) { return !l.ClockOut; }).map(function (l) {
-        return { staffName: userName_(l.StaffID), since: timeLabel_(l.ClockIn), date: l.Date, onBreak: !!l.BreakStart };
+        const e = publicTimeEntry_(l, nowStr_());
+        return { staffName: userName_(l.StaffID), since: timeLabel_(l.ClockIn), date: l.Date, onBreak: !!l.BreakStart, missedChecks: e.missedChecks, checkStatus: e.check.status };
       }),
       totals: {
         sales: total('sales'),
@@ -196,7 +197,7 @@ function apiFunctions_() {
     listPackages: listPackages, savePackage: savePackage,
     getReport: getReport, getStatement: getStatement,
     getAdminDashboard: getAdminDashboard, getMyDashboard: getMyDashboard,
-    getMyTimeClock: getMyTimeClock, clockIn: clockIn, clockOut: clockOut, toggleBreak: toggleBreak,
+    getMyTimeClock: getMyTimeClock, clockIn: clockIn, clockOut: clockOut, toggleBreak: toggleBreak, confirmStillWorking: confirmStillWorking,
     getTimeOverview: getTimeOverview, saveTimeLog: saveTimeLog, deleteTimeLog: deleteTimeLog
   };
 }
@@ -573,9 +574,13 @@ const SCHEMA = {
   TimeLogs: [
     ['LogID', 'text'], ['StaffID', 'text'], ['Date', 'date'], ['ClockIn', 'datetime'], ['ClockOut', 'datetime'],
     ['BreakMinutes', 'number'], ['BreakStart', 'datetime'], ['Hours', 'number'], ['Source', 'text'],
-    ['Notes', 'text'], ['CreatedAt', 'datetime'], ['UpdatedAt', 'datetime'], ['EditedBy', 'text']
+    ['Notes', 'text'], ['CreatedAt', 'datetime'], ['UpdatedAt', 'datetime'], ['EditedBy', 'text'],
+    ['LastConfirmedAt', 'datetime'], ['ConfirmedChecks', 'number'], ['MissedChecks', 'number'], ['MissedDetail', 'text']
   ]
 };
+
+/** Bump when SCHEMA or Config defaults change: existing databases upgrade themselves on next sign-in. */
+const SCHEMA_VERSION = '3';
 
 /* Per-execution caches. Each google.script.run call is a fresh execution;
  * api_() also resets these so local test harnesses behave the same way. */
@@ -758,12 +763,16 @@ function withLock_(fn) {
 
 function assertDatabaseReady_() {
   const ss = getSpreadsheet_();
+  const props = PropertiesService.getScriptProperties();
   let missing = Object.keys(SCHEMA).filter(function (n) { return !ss.getSheetByName(n); });
-  if (missing.length && ss.getSheetByName(SHEET.CONFIG)) {
-    // Sheets added in a later version (e.g. TimeLogs) are created automatically,
-    // so upgrading only needs new code — no need to re-run setupDatabase().
+  if ((missing.length || props.getProperty('SCHEMA_VERSION') !== SCHEMA_VERSION) && ss.getSheetByName(SHEET.CONFIG)) {
+    // New sheets, new columns and new settings from a later version are added
+    // automatically (existing data is never touched), so upgrading only needs
+    // new code — no need to re-run setupDatabase().
     withLock_(function () {
-      missing.forEach(function (n) { if (!ss.getSheetByName(n)) ensureSheet_(ss, n, []); });
+      Object.keys(SCHEMA).forEach(function (n) { ensureSheet_(ss, n, []); });
+      seedConfig_([]);
+      props.setProperty('SCHEMA_VERSION', SCHEMA_VERSION);
     });
     missing = Object.keys(SCHEMA).filter(function (n) { return !ss.getSheetByName(n); });
   }
@@ -821,7 +830,9 @@ function configDefaults_() {
     ['TemplateBaseCompensation', '8000', 'Default base compensation for new schedules.'],
     ['TemplateExpectedHours', '90', 'Default expected hours for new schedules.'],
     ['TemplateCommissionStructure', 'TIERED_WHOLE', 'TIERED_WHOLE (reached tier rate applies to all sales) or TIERED_PROGRESSIVE.'],
-    ['TemplateBonusStructure', 'HIGHEST', 'HIGHEST (highest applicable bonus only) or CUMULATIVE.']
+    ['TemplateBonusStructure', 'HIGHEST', 'HIGHEST (highest applicable bonus only) or CUMULATIVE.'],
+    ['TimeCheckIntervalMinutes', '30', 'Ask clocked-in staff "Are you still working?" every N minutes (0 = off).'],
+    ['TimeCheckResponseMinutes', '15', 'Minutes staff have to answer before the check is flagged as missed.']
   ];
 }
 
@@ -901,6 +912,8 @@ function publicConfig_() {
     currentMonth: currentMonth_(),
     commissionBasis: rules.basis,
     commissionBasisLabel: COMMISSION_BASIS[rules.basis],
+    timeCheckMinutes: timeCheckSettings_().interval,
+    timeCheckResponseMinutes: timeCheckSettings_().window,
     paymentStatuses: PAYMENT_STATUSES,
     bookingStatuses: BOOKING_STATUSES,
     scheduleStatuses: Object.keys(SCHEDULE_STATUS).map(function (k) { return SCHEDULE_STATUS[k]; })
@@ -921,6 +934,8 @@ function getSettings(token) {
       Currency: cfg.Currency || 'PHP',
       CurrencySymbol: cfg.CurrencySymbol || '₱',
       Timezone: cfg.Timezone || tz_(),
+      TimeCheckIntervalMinutes: timeCheckSettings_().interval,
+      TimeCheckResponseMinutes: timeCheckSettings_().window,
       AppVersion: cfg.AppVersion || APP_VERSION
     };
   });
@@ -948,7 +963,14 @@ function saveSettings(token, input) {
         throw appError_('"' + timezone + '" is not a valid timezone (example: Asia/Manila).');
       }
 
+      const checkEvery = num_(input.TimeCheckIntervalMinutes, 'Still-working check interval', { min: 0, max: 720, integer: true, defaultValue: 30 });
+      const checkAnswer = num_(input.TimeCheckResponseMinutes, 'Time to answer the check', { min: 1, max: 120, integer: true, defaultValue: 15 });
+      if (checkEvery > 0 && checkEvery < 5) throw appError_('The still-working check interval must be 0 (off) or at least 5 minutes.');
+      if (checkEvery > 0 && checkAnswer >= checkEvery) throw appError_('The time to answer must be shorter than the check interval.');
+
       setConfigValues_({
+        TimeCheckIntervalMinutes: checkEvery,
+        TimeCheckResponseMinutes: checkAnswer,
         StudioName: studioName,
         AdminEmails: unique.join(', '),
         Currency: currency,
@@ -1939,6 +1961,65 @@ function openShiftHours_(entry, nowStr) {
   return computeEntryHours_(entry.ClockIn, nowStr, breakMins);
 }
 
+/* ------------------------------------------------------------------ */
+/* "Are you still working?" checks                                     */
+/* ------------------------------------------------------------------ */
+
+/** Check settings from Config (interval 0 = checks switched off). */
+function timeCheckSettings_() {
+  return {
+    interval: Math.max(0, Number(getConfigValue_('TimeCheckIntervalMinutes', 30)) || 0),
+    window: Math.max(1, Number(getConfigValue_('TimeCheckResponseMinutes', 15)) || 15)
+  };
+}
+
+/**
+ * pure — Where an open shift stands with its still-working checks.
+ * Checks fall due every `interval` minutes after the last confirmation (or
+ * clock-in). A check not confirmed within `window` minutes is missed. Checks
+ * pause during breaks; ending a break counts as a confirmation.
+ *  status: off | paused | ok | due (answer now) | missed (overdue, not answered)
+ */
+function checkStatus_(entry, nowStr, interval, window) {
+  const stored = Number(entry && entry.MissedChecks) || 0;
+  const base = { status: 'off', pendingMissed: 0, missedTimes: [], totalMissed: stored,
+    confirmed: Number(entry && entry.ConfirmedChecks) || 0, intervalMinutes: interval, windowMinutes: window };
+  if (!entry || entry.ClockOut || !interval) return base;
+  if (entry.BreakStart) return Object.assign(base, { status: 'paused' });
+  const I = interval * 60000;
+  const W = Math.min(window, interval) * 60000;
+  const anchor = parseDateTime_(entry.LastConfirmedAt || entry.ClockIn);
+  const now = parseDateTime_(nowStr);
+  const n = Math.floor((now - anchor) / I); // checks that have fallen due
+  if (n < 1) return Object.assign(base, { status: 'ok', nextCheckAt: formatDateTime_(anchor + I) });
+  const lastDue = anchor + n * I;
+  const inWindow = now < lastDue + W;
+  const missed = inWindow ? n - 1 : n;
+  const times = [];
+  for (let k = 1; k <= missed; k++) times.push(formatDateTime_(anchor + k * I));
+  return Object.assign(base, {
+    status: inWindow ? 'due' : 'missed',
+    dueAt: formatDateTime_(lastDue),
+    deadline: formatDateTime_(lastDue + W),
+    nextCheckAt: formatDateTime_(lastDue + I),
+    pendingMissed: missed,
+    missedTimes: times,
+    totalMissed: stored + missed
+  });
+}
+
+/**
+ * Stores any missed checks on the entry before its anchor moves (confirm,
+ * break, clock-out), so they stay visible to the Admin. Returns the patch.
+ */
+function settleChecks_(entry, nowStr) {
+  const s = timeCheckSettings_();
+  const c = checkStatus_(entry, nowStr, s.interval, s.window);
+  if (!c.pendingMissed) return {};
+  const detail = [entry.MissedDetail].concat(c.missedTimes.map(function (t) { return timeLabel_(t); })).filter(Boolean).join(', ');
+  return { MissedChecks: c.totalMissed, MissedDetail: truncate_(detail, 1000) };
+}
+
 function publicTimeEntry_(l, nowStr) {
   const out = publicRow_(l);
   out.inLabel = timeLabel_(l.ClockIn);
@@ -1949,7 +2030,14 @@ function publicTimeEntry_(l, nowStr) {
   if (out.open) {
     out.hoursSoFar = openShiftHours_(l, nowStr);
     out.longOpen = out.hoursSoFar >= OPEN_SHIFT_WARNING_HOURS;
+    const s = timeCheckSettings_();
+    out.check = checkStatus_(l, nowStr, s.interval, s.window);
+    if (out.check.pendingMissed) {
+      out.MissedDetail = [l.MissedDetail].concat(out.check.missedTimes.map(function (t) { return timeLabel_(t); })).filter(Boolean).join(', ');
+    }
   }
+  out.missedChecks = out.open ? out.check.totalMissed : Number(l.MissedChecks) || 0;
+  out.confirmedChecks = Number(l.ConfirmedChecks) || 0;
   return out;
 }
 
@@ -2045,13 +2133,30 @@ function toggleBreak(token) {
       let message;
       if (open.BreakStart) {
         const mins = Math.max(0, Math.round((parseDateTime_(now) - parseDateTime_(open.BreakStart)) / 60000));
-        updateRow_(SHEET.TIME, 'LogID', open.LogID, { BreakMinutes: (Number(open.BreakMinutes) || 0) + mins, BreakStart: '', UpdatedAt: now });
+        updateRow_(SHEET.TIME, 'LogID', open.LogID, { BreakMinutes: (Number(open.BreakMinutes) || 0) + mins, BreakStart: '', LastConfirmedAt: now, UpdatedAt: now });
         message = 'Break ended (' + mins + ' min).';
       } else {
-        updateRow_(SHEET.TIME, 'LogID', open.LogID, { BreakStart: now, UpdatedAt: now });
+        updateRow_(SHEET.TIME, 'LogID', open.LogID, Object.assign(settleChecks_(open, now), { BreakStart: now, UpdatedAt: now }));
         message = 'Break started at ' + timeLabel_(now) + '.';
       }
       return ok_(timeClockState_(user.userId), message);
+    });
+  });
+}
+
+/** "Yes, I'm still working" — records the confirmation (late answers still count as missed). */
+function confirmStillWorking(token) {
+  return api_(function () {
+    const user = requireUser_(token);
+    return withLock_(function () {
+      const open = openEntry_(user.userId);
+      if (!open) throw appError_('You are not clocked in.');
+      const now = nowStr_();
+      const patch = Object.assign(settleChecks_(open, now), {
+        LastConfirmedAt: now, ConfirmedChecks: (Number(open.ConfirmedChecks) || 0) + 1, UpdatedAt: now
+      });
+      updateRow_(SHEET.TIME, 'LogID', open.LogID, patch);
+      return ok_(timeClockState_(user.userId), patch.MissedChecks ? 'Thanks — confirmed. The missed check was noted for the Admin.' : 'Thanks — confirmed.');
     });
   });
 }
@@ -2067,10 +2172,10 @@ function clockOut(token, note) {
       if (open.BreakStart) breakMins += Math.max(0, Math.round((parseDateTime_(now) - parseDateTime_(open.BreakStart)) / 60000));
       const hours = computeEntryHours_(open.ClockIn, now, breakMins);
       const extra = str_(note, 'Note', { maxLength: 300 });
-      updateRow_(SHEET.TIME, 'LogID', open.LogID, {
+      updateRow_(SHEET.TIME, 'LogID', open.LogID, Object.assign(open.BreakStart ? {} : settleChecks_(open, now), {
         ClockOut: now, BreakMinutes: breakMins, BreakStart: '', Hours: hours, UpdatedAt: now,
         Notes: [open.Notes, extra].filter(Boolean).join(' · ')
-      });
+      }));
       return ok_(timeClockState_(user.userId), 'Clocked out at ' + timeLabel_(now) + ' — ' + hours + ' h worked.');
     });
   });
@@ -2105,8 +2210,10 @@ function getTimeOverview(token, filters) {
       });
       const expected = scheds.length ? round2_(sum_(scheds, function (s) { return s.ExpectedHours; })) : null;
       const logged = sumLoggedHours_(logs, u.UserID, from, to);
+      const missedChecks = sum_(logs.filter(function (l) { return l.StaffID === u.UserID && l.Date >= from && l.Date <= to; }),
+        function (l) { return publicTimeEntry_(l, now).missedChecks; });
       return {
-        staffId: u.UserID, staffName: u.Name, expectedHours: expected, loggedHours: logged.hours, entries: logged.entries,
+        staffId: u.UserID, staffName: u.Name, expectedHours: expected, loggedHours: logged.hours, entries: logged.entries, missedChecks: missedChecks,
         hoursProgress: progress_(logged.hours, expected),
         hoursRemaining: expected === null ? null : round2_(Math.max(0, expected - logged.hours)),
         clockedIn: clockedIn.some(function (c) { return c.StaffID === u.UserID; })
@@ -3224,6 +3331,7 @@ function setupDatabase() {
     seedFirstAdmin_(log);
     seedPackages_(log);
     seedTemplateTiers_(log);
+    props.setProperty('SCHEMA_VERSION', SCHEMA_VERSION);
     logAudit_('System', 'Ran setupDatabase()', 'Setup', '', log.join(' | '));
   });
   const summary = 'Database ready.\n\n' + (log.length ? log.join('\n') : 'Everything was already set up.') +
@@ -3588,6 +3696,17 @@ function runCommissionTests() {
   check('Hourly base prefers Actual hours typed on the schedule',
     computeBase_({ BaseType: 'HOURLY', HourlyRate: 100, ExpectedHours: 90, ActualHours: 60 }, 50).amount, 6000);
   check('Fixed base is not affected by hours', computeBase_({ BaseType: 'FIXED', BaseCompensation: 8000, ExpectedHours: 90 }, 12).amount, 8000);
+
+  // "Are you still working?" checks: every 30 min, 15 min to answer.
+  const shift = { ClockIn: '2026-10-02 09:00:00', ClockOut: '', MissedChecks: 0 };
+  const cs = function (now, e) { const c = checkStatus_(e || shift, now, 30, 15); return [c.status, c.pendingMissed]; };
+  check('Check: 09:20 → nothing due yet', cs('2026-10-02 09:20:00'), ['ok', 0]);
+  check('Check: 09:35 → "still working?" due (answer by 09:45)', cs('2026-10-02 09:35:00'), ['due', 0]);
+  check('Check: 09:50 unanswered → 1 missed', cs('2026-10-02 09:50:00'), ['missed', 1]);
+  check('Check: 10:05 → next check due, 1 missed so far', cs('2026-10-02 10:05:00'), ['due', 1]);
+  check('Check: confirmed at 10:05 → next due 10:35', checkStatus_(Object.assign({}, shift, { LastConfirmedAt: '2026-10-02 10:05:00' }), '2026-10-02 10:20:00', 30, 15).nextCheckAt, '2026-10-02 10:35:00');
+  check('Check: paused during a break', cs('2026-10-02 11:00:00', Object.assign({}, shift, { BreakStart: '2026-10-02 10:40:00' })), ['paused', 0]);
+  check('Check: interval 0 switches checks off', checkStatus_(shift, '2026-10-02 12:00:00', 0, 15).status, 'off');
 
   const failed = results.filter(function (r) { return !r.pass; });
   results.forEach(function (r) {

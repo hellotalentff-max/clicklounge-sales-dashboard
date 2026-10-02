@@ -336,6 +336,21 @@ How it counts:
 - Entries inside an **Approved/Paid** month are locked, like sales.
 - Shifts open for more than 14 hours are flagged as a possible forgotten clock-out.
 
+### "Are you still working?" checks
+While a staff member is clocked in, the app asks **"Are you still working?"** every
+**30 minutes** (Settings → check interval; 0 turns it off). They have **15 minutes** to tap
+**Yes** (or **No — clock me out**). An unanswered check is **flagged as missed**. The shift
+stays open, and you see the missed checks (with their times) on the **Time** page and the
+Admin dashboard, then decide whether to correct the hours.
+
+- The server decides when a check is due or missed, so changing the phone's clock doesn't help.
+- Checks pause during breaks; ending a break counts as a confirmation.
+- A web page can only pop up while it is open. If the app is closed or the phone is asleep,
+  the check appears as soon as the app is opened again, and an overdue check still counts
+  as missed. Staff should keep the app open while working. On computers and Android they
+  can tap **Turn on reminder notifications** for a system notification when the tab is in
+  the background.
+
 Data lives in the **TimeLogs** sheet, which is created automatically the first time the
 updated app is opened (no need to re-run setup).
 

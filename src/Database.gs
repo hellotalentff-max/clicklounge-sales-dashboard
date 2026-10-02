@@ -82,9 +82,13 @@ const SCHEMA = {
   TimeLogs: [
     ['LogID', 'text'], ['StaffID', 'text'], ['Date', 'date'], ['ClockIn', 'datetime'], ['ClockOut', 'datetime'],
     ['BreakMinutes', 'number'], ['BreakStart', 'datetime'], ['Hours', 'number'], ['Source', 'text'],
-    ['Notes', 'text'], ['CreatedAt', 'datetime'], ['UpdatedAt', 'datetime'], ['EditedBy', 'text']
+    ['Notes', 'text'], ['CreatedAt', 'datetime'], ['UpdatedAt', 'datetime'], ['EditedBy', 'text'],
+    ['LastConfirmedAt', 'datetime'], ['ConfirmedChecks', 'number'], ['MissedChecks', 'number'], ['MissedDetail', 'text']
   ]
 };
+
+/** Bump when SCHEMA or Config defaults change: existing databases upgrade themselves on next sign-in. */
+const SCHEMA_VERSION = '3';
 
 /* Per-execution caches. Each google.script.run call is a fresh execution;
  * api_() also resets these so local test harnesses behave the same way. */
@@ -267,12 +271,16 @@ function withLock_(fn) {
 
 function assertDatabaseReady_() {
   const ss = getSpreadsheet_();
+  const props = PropertiesService.getScriptProperties();
   let missing = Object.keys(SCHEMA).filter(function (n) { return !ss.getSheetByName(n); });
-  if (missing.length && ss.getSheetByName(SHEET.CONFIG)) {
-    // Sheets added in a later version (e.g. TimeLogs) are created automatically,
-    // so upgrading only needs new code — no need to re-run setupDatabase().
+  if ((missing.length || props.getProperty('SCHEMA_VERSION') !== SCHEMA_VERSION) && ss.getSheetByName(SHEET.CONFIG)) {
+    // New sheets, new columns and new settings from a later version are added
+    // automatically (existing data is never touched), so upgrading only needs
+    // new code — no need to re-run setupDatabase().
     withLock_(function () {
-      missing.forEach(function (n) { if (!ss.getSheetByName(n)) ensureSheet_(ss, n, []); });
+      Object.keys(SCHEMA).forEach(function (n) { ensureSheet_(ss, n, []); });
+      seedConfig_([]);
+      props.setProperty('SCHEMA_VERSION', SCHEMA_VERSION);
     });
     missing = Object.keys(SCHEMA).filter(function (n) { return !ss.getSheetByName(n); });
   }

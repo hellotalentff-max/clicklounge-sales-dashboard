@@ -98,6 +98,17 @@ function runCommissionTests() {
     computeBase_({ BaseType: 'HOURLY', HourlyRate: 100, ExpectedHours: 90, ActualHours: 60 }, 50).amount, 6000);
   check('Fixed base is not affected by hours', computeBase_({ BaseType: 'FIXED', BaseCompensation: 8000, ExpectedHours: 90 }, 12).amount, 8000);
 
+  // "Are you still working?" checks: every 30 min, 15 min to answer.
+  const shift = { ClockIn: '2026-10-02 09:00:00', ClockOut: '', MissedChecks: 0 };
+  const cs = function (now, e) { const c = checkStatus_(e || shift, now, 30, 15); return [c.status, c.pendingMissed]; };
+  check('Check: 09:20 → nothing due yet', cs('2026-10-02 09:20:00'), ['ok', 0]);
+  check('Check: 09:35 → "still working?" due (answer by 09:45)', cs('2026-10-02 09:35:00'), ['due', 0]);
+  check('Check: 09:50 unanswered → 1 missed', cs('2026-10-02 09:50:00'), ['missed', 1]);
+  check('Check: 10:05 → next check due, 1 missed so far', cs('2026-10-02 10:05:00'), ['due', 1]);
+  check('Check: confirmed at 10:05 → next due 10:35', checkStatus_(Object.assign({}, shift, { LastConfirmedAt: '2026-10-02 10:05:00' }), '2026-10-02 10:20:00', 30, 15).nextCheckAt, '2026-10-02 10:35:00');
+  check('Check: paused during a break', cs('2026-10-02 11:00:00', Object.assign({}, shift, { BreakStart: '2026-10-02 10:40:00' })), ['paused', 0]);
+  check('Check: interval 0 switches checks off', checkStatus_(shift, '2026-10-02 12:00:00', 0, 15).status, 'off');
+
   const failed = results.filter(function (r) { return !r.pass; });
   results.forEach(function (r) {
     console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.pass ? '' : '  → expected ' + JSON.stringify(r.expected) + ', got ' + JSON.stringify(r.actual)));

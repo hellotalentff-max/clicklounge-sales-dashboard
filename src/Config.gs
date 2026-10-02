@@ -44,7 +44,9 @@ function configDefaults_() {
     ['TemplateBaseCompensation', '8000', 'Default base compensation for new schedules.'],
     ['TemplateExpectedHours', '90', 'Default expected hours for new schedules.'],
     ['TemplateCommissionStructure', 'TIERED_WHOLE', 'TIERED_WHOLE (reached tier rate applies to all sales) or TIERED_PROGRESSIVE.'],
-    ['TemplateBonusStructure', 'HIGHEST', 'HIGHEST (highest applicable bonus only) or CUMULATIVE.']
+    ['TemplateBonusStructure', 'HIGHEST', 'HIGHEST (highest applicable bonus only) or CUMULATIVE.'],
+    ['TimeCheckIntervalMinutes', '30', 'Ask clocked-in staff "Are you still working?" every N minutes (0 = off).'],
+    ['TimeCheckResponseMinutes', '15', 'Minutes staff have to answer before the check is flagged as missed.']
   ];
 }
 
@@ -124,6 +126,8 @@ function publicConfig_() {
     currentMonth: currentMonth_(),
     commissionBasis: rules.basis,
     commissionBasisLabel: COMMISSION_BASIS[rules.basis],
+    timeCheckMinutes: timeCheckSettings_().interval,
+    timeCheckResponseMinutes: timeCheckSettings_().window,
     paymentStatuses: PAYMENT_STATUSES,
     bookingStatuses: BOOKING_STATUSES,
     scheduleStatuses: Object.keys(SCHEDULE_STATUS).map(function (k) { return SCHEDULE_STATUS[k]; })
@@ -144,6 +148,8 @@ function getSettings(token) {
       Currency: cfg.Currency || 'PHP',
       CurrencySymbol: cfg.CurrencySymbol || '₱',
       Timezone: cfg.Timezone || tz_(),
+      TimeCheckIntervalMinutes: timeCheckSettings_().interval,
+      TimeCheckResponseMinutes: timeCheckSettings_().window,
       AppVersion: cfg.AppVersion || APP_VERSION
     };
   });
@@ -171,7 +177,14 @@ function saveSettings(token, input) {
         throw appError_('"' + timezone + '" is not a valid timezone (example: Asia/Manila).');
       }
 
+      const checkEvery = num_(input.TimeCheckIntervalMinutes, 'Still-working check interval', { min: 0, max: 720, integer: true, defaultValue: 30 });
+      const checkAnswer = num_(input.TimeCheckResponseMinutes, 'Time to answer the check', { min: 1, max: 120, integer: true, defaultValue: 15 });
+      if (checkEvery > 0 && checkEvery < 5) throw appError_('The still-working check interval must be 0 (off) or at least 5 minutes.');
+      if (checkEvery > 0 && checkAnswer >= checkEvery) throw appError_('The time to answer must be shorter than the check interval.');
+
       setConfigValues_({
+        TimeCheckIntervalMinutes: checkEvery,
+        TimeCheckResponseMinutes: checkAnswer,
         StudioName: studioName,
         AdminEmails: unique.join(', '),
         Currency: currency,

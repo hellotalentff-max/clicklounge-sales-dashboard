@@ -90,6 +90,7 @@ function setupDatabase() {
     seedFirstAdmin_(log);
     seedPackages_(log);
     seedTemplateTiers_(log);
+    props.setProperty('SCHEMA_VERSION', SCHEMA_VERSION);
     logAudit_('System', 'Ran setupDatabase()', 'Setup', '', log.join(' | '));
   });
   const summary = 'Database ready.\n\n' + (log.length ? log.join('\n') : 'Everything was already set up.') +

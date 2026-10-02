@@ -443,6 +443,68 @@ function runE2E() {
     eq(ok(getMyTimeClock(staffTok)).open !== null, true);
     ok(clockOut(staffTok));
   });
+  // ---------- "Are you still working?" checks ----------
+  const backdate = (mins) => {
+    resetExecutionCaches_();
+    const open = openEntry_(T);
+    const start = formatDateTime_(parseDateTime_(nowStr_()) - mins * 60000);
+    updateRow_(SHEET.TIME, 'LogID', open.LogID, { ClockIn: start, Date: start.slice(0, 10), LastConfirmedAt: '' });
+    return open.LogID;
+  };
+  t('Still-working check: settings reach the app (every 30 min, 15 min to answer)', () => {
+    const cfg = ok(bootstrap(staffTok)).config;
+    eq([cfg.timeCheckMinutes, cfg.timeCheckResponseMinutes], [30, 15]);
+  });
+  t('Check is due 35 min after clock-in; confirming records it', () => {
+    ok(clockIn(staffTok));
+    const id = backdate(35);
+    eq(ok(getMyTimeClock(staffTok)).open.check.status, 'due');
+    const d = ok(apiCall('confirmStillWorking', [staffTok]));
+    eq([d.open.check.status, d.open.confirmedChecks, d.open.missedChecks], ['ok', 1, 0]);
+    return id;
+  });
+  t('Unanswered check is missed, flagged to admin, and kept after a late confirmation', () => {
+    const id = backdate(50);
+    const st = ok(getMyTimeClock(staffTok));
+    eq([st.open.check.status, st.open.missedChecks], ['missed', 1]);
+    const live = ok(getTimeOverview(pagesAdmin, {})).clockedIn.find((c) => c.LogID === id);
+    eq(live.missedChecks, 1);
+    eq(ok(getAdminDashboard(pagesAdmin, month)).clockedIn[0].missedChecks, 1);
+    const r = ok(confirmStillWorking(staffTok));
+    eq([r.open.missedChecks, r.open.confirmedChecks], [1, 2]);
+    if (!r.open.MissedDetail) throw new Error('missed time not recorded');
+    return 'missed at ' + r.open.MissedDetail;
+  });
+  t('Checks pause on break; missed checks survive clock-out', () => {
+    const id = backdate(50);
+    eq(ok(toggleBreak(staffTok)).open.check.status, 'paused');
+    eq(ok(toggleBreak(staffTok)).open.check.status, 'ok');
+    const out = ok(clockOut(staffTok));
+    const e = out.entries.find((x) => x.LogID === id);
+    eq([e.open, e.missedChecks >= 2], [false, true]);
+  });
+  t('Staff cannot confirm for others; confirming when clocked out is refused', () => {
+    err(confirmStillWorking(staffTok));
+    err(confirmStillWorking('bogus'), 'AUTH');
+  });
+  t('Settings: check interval validated (0 = off, ≥ 5 min, answer time shorter)', () => {
+    const base = { StudioName: 'ClickLounge Studio', AdminEmails: M.OWNER_EMAIL, Currency: 'PHP', CurrencySymbol: '₱', Timezone: 'Asia/Manila' };
+    err(saveSettings(pagesAdmin, Object.assign({}, base, { TimeCheckIntervalMinutes: 3, TimeCheckResponseMinutes: 1 })));
+    err(saveSettings(pagesAdmin, Object.assign({}, base, { TimeCheckIntervalMinutes: 30, TimeCheckResponseMinutes: 30 })));
+    ok(saveSettings(pagesAdmin, Object.assign({}, base, { TimeCheckIntervalMinutes: 60, TimeCheckResponseMinutes: 10 })));
+    eq(ok(bootstrap(staffTok)).config.timeCheckMinutes, 60);
+    ok(saveSettings(pagesAdmin, Object.assign({}, base, { TimeCheckIntervalMinutes: 30, TimeCheckResponseMinutes: 15 })));
+  });
+  t('Upgrade: an older TimeLogs sheet gets the new check columns automatically', () => {
+    const sh = M.ss.getSheetByName('TimeLogs');
+    const lastCol = sh.getLastColumn();
+    sh.data.forEach((row) => row.splice(lastCol - 4, 4)); // remove the 4 newest columns
+    PropertiesService.getScriptProperties().setProperty('SCHEMA_VERSION', '2');
+    ok(bootstrap(staffTok));
+    resetExecutionCaches_();
+    eq(readTable_('TimeLogs').headers.slice(-4), ['LastConfirmedAt', 'ConfirmedChecks', 'MissedChecks', 'MissedDetail']);
+  });
+
   t('Deleting an entry is audited', () => {
     const entry = rows_(SHEET.TIME).find((l) => l.StaffID === T && l.Date === day(4));
     ok(deleteTimeLog(pagesAdmin, entry.LogID));

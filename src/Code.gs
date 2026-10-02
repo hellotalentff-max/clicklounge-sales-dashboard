@@ -100,7 +100,8 @@ function getAdminDashboard(token, month) {
       staffWithoutSchedule: missing,
       pendingApproval: rows_(SHEET.SCHEDULES).filter(function (s) { return s.Status === SCHEDULE_STATUS.PENDING; }).length,
       clockedIn: rows_(SHEET.TIME).filter(function (l) { return !l.ClockOut; }).map(function (l) {
-        return { staffName: userName_(l.StaffID), since: timeLabel_(l.ClockIn), date: l.Date, onBreak: !!l.BreakStart };
+        const e = publicTimeEntry_(l, nowStr_());
+        return { staffName: userName_(l.StaffID), since: timeLabel_(l.ClockIn), date: l.Date, onBreak: !!l.BreakStart, missedChecks: e.missedChecks, checkStatus: e.check.status };
       }),
       totals: {
         sales: total('sales'),
