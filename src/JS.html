@@ -96,6 +96,13 @@
   }
   const pct = (n) => (n === null || n === undefined ? '—' : (Math.round(n * 10) / 10).toLocaleString('en-US') + '%');
   const qty = (n) => (n === null || n === undefined || n === '' ? '—' : (Math.round(Number(n) * 100) / 100).toLocaleString('en-US'));
+  /** 7.5 → "7h 30m" */
+  function hrs(h) {
+    if (h === null || h === undefined || h === '') return '—';
+    const mins = Math.round(Number(h) * 60);
+    const hh = Math.floor(mins / 60), mm = mins % 60;
+    return hh + 'h' + (mm ? ' ' + String(mm).padStart(2, '0') + 'm' : '');
+  }
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   function monthLabel(m) {
     if (!m || !/^\d{4}-\d{2}$/.test(m)) return m || '';
@@ -140,6 +147,7 @@
     shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
     gear: 'M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z',
     clock: 'M12 21a9 9 0 100-18 9 9 0 000 18zM12 7v5l3 2',
+    timer: 'M12 22a8 8 0 100-16 8 8 0 000 16zM12 10v4l2.5 1.5M9 2h6M12 2v4',
     plus: 'M12 5v14M5 12h14',
     trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
     print: 'M6 9V3h12v6M6 18H4v-6h16v6h-2M6 14h12v7H6z',
@@ -312,19 +320,19 @@
   /* ================================================================ */
   /* Routing & shell                                                  */
   /* ================================================================ */
-  const ADMIN_NAV = [['dashboard', 'Dashboard', 'grid'], ['sales', 'Sales', 'receipt'], ['staff', 'Staff', 'users'],
+  const ADMIN_NAV = [['dashboard', 'Dashboard', 'grid'], ['sales', 'Sales', 'receipt'], ['time', 'Time', 'timer'], ['staff', 'Staff', 'users'],
     ['schedules', 'Monthly Schedules', 'calendar'], ['rules', 'Commission Rules', 'percent'], ['packages', 'Packages', 'box'],
     ['reports', 'Reports', 'chart'], ['audit', 'Audit Log', 'shield'], ['settings', 'Settings', 'gear']];
-  const STAFF_NAV = [['home', 'My Dashboard', 'grid'], ['my-sales', 'My Sales', 'receipt'], ['my-schedule', 'My Monthly Schedule', 'calendar'],
+  const STAFF_NAV = [['home', 'My Dashboard', 'grid'], ['time', 'Time Clock', 'timer'], ['my-sales', 'My Sales', 'receipt'], ['my-schedule', 'My Monthly Schedule', 'calendar'],
     ['my-commission', 'My Commission', 'percent'], ['history', 'History', 'clock']];
 
   const ADMIN_ROUTES = {
-    dashboard: viewAdminDashboard, sales: viewSales, staff: viewStaff, schedules: viewSchedules,
+    dashboard: viewAdminDashboard, sales: viewSales, time: viewTimeAdmin, staff: viewStaff, schedules: viewSchedules,
     schedule: viewScheduleDetail, 'schedule-edit': viewScheduleEdit, rules: viewRules, packages: viewPackages,
     reports: viewReports, audit: viewAudit, settings: viewSettings, statement: viewStatement
   };
   const STAFF_ROUTES = {
-    home: viewMyDashboard, 'my-sales': viewMySales, 'my-schedule': viewMySchedule,
+    home: viewMyDashboard, time: viewTimeClock, 'my-sales': viewMySales, 'my-schedule': viewMySchedule,
     'my-commission': viewMyCommission, history: viewHistory, statement: viewStatement
   };
   const NAV_PARENT = { schedule: 'schedules', 'schedule-edit': 'schedules', statement: null };
@@ -485,10 +493,21 @@
       kpi((forStaff ? 'Current ' : '') + 'Commission', money(c.commissionAmount), esc(c.commissionTier)) +
       kpi((forStaff ? 'Current ' : '') + 'Bonus', money(c.bonusAmount), esc(c.bonusTier)) +
       kpi('Base', money(c.baseCompensation), c.effectiveHourlyRate !== null && c.effectiveHourlyRate !== undefined ? 'Effective ' + money(c.effectiveHourlyRate) + '/hour' : (c.baseType === 'HOURLY' ? 'Hourly' : 'Fixed monthly')) +
+      hoursCard(c, forStaff) +
+      (next.length ? '<div class="kpi"><div class="label">Next milestones</div><div style="margin-top:8px;display:grid;gap:6px;font-size:13.5px">' + next.map((n) => '<div>→ ' + esc(n) + '</div>').join('') + '</div></div>' : '') +
       '<div class="kpi feature wide"><div class="label">' + est + ' total</div><div class="value">' + money(c.totalCompensation) + '</div>' +
       '<div class="hint">Base ' + money(c.baseCompensation) + ' + Commission ' + money(c.commissionAmount) + ' + Bonus ' + money(c.bonusAmount) + '</div></div>' +
-      (next.length ? '<div class="kpi wide"><div class="label">Next milestones</div><div style="margin-top:8px;display:grid;gap:4px;font-size:14px">' + next.map((n) => '<div>→ ' + esc(n) + '</div>').join('') + '</div></div>' : '') +
       '</div>';
+  }
+
+  /** Hours worked (time clock) vs the schedule's required hours. */
+  function hoursCard(c, forStaff) {
+    if ((c.expectedHours === null || c.expectedHours === undefined) && !c.loggedHours) return '';
+    const req = c.expectedHours === null || c.expectedHours === undefined ? null : c.expectedHours;
+    return '<div class="kpi"><div class="label">' + (forStaff ? 'My hours' : 'Hours worked') + '</div>' +
+      '<div class="value">' + hrs(c.loggedHours || 0) + (req !== null ? ' <span class="muted" style="font-size:.6em">/ ' + hrs(req) + '</span>' : '') + '</div>' +
+      (req !== null ? progressBar(c.hoursProgress, 'sm') + '<div class="hint">' + (c.hoursRemaining > 0 ? hrs(c.hoursRemaining) + ' still required' : 'Required hours met') + '</div>'
+        : '<div class="hint">' + (c.timeEntries || 0) + ' time entr' + (c.timeEntries === 1 ? 'y' : 'ies') + '</div>') + '</div>';
   }
 
   function estimateBanner(c) {
@@ -542,6 +561,9 @@
         '<select id="dash-month" aria-label="Month">' + monthOptions(d.month, months) + '</select>' +
         '<button class="btn gold" id="dash-sale">' + icon('plus') + 'Record sale</button>') +
       (d.pendingApproval ? '<div class="alert warn"><div class="grow"><strong>' + d.pendingApproval + ' schedule(s) awaiting approval.</strong> Check the sales, then approve.</div><a class="btn sm" href="#/schedules/all/Pending Approval">Review</a></div>' : '') +
+      (d.clockedIn && d.clockedIn.length ? '<div class="alert ok"><div class="grow"><strong>Clocked in now:</strong> ' +
+        d.clockedIn.map((c) => esc(c.staffName) + ' <span class="muted">(since ' + esc(c.since) + (c.date !== S.config.today ? ', ' + esc(dateLabel(c.date)) : '') + (c.onBreak ? ', on break' : '') + ')</span>').join(', ') +
+        '</div><a class="btn sm" href="#/time">Time</a></div>' : '') +
       (d.staffWithoutSchedule.length ? '<div class="alert info"><div class="grow">No ' + esc(d.monthLabel) + ' schedule yet for: <strong>' +
         d.staffWithoutSchedule.map((u) => esc(u.name)).join(', ') + '</strong>.</div><a class="btn sm" href="#/schedules">Create schedules</a></div>' : '') +
       '<div class="grid kpis">' +
@@ -565,6 +587,7 @@
       { key: 'salesTarget', label: 'Target', right: true, sortable: true, render: (r) => money(r.salesTarget) },
       { key: 'salesProgress', label: 'Progress', right: true, sortable: true, render: (r) => pct(r.salesProgress) + progressBar(r.salesProgress, 'sm') },
       { key: 'packageCount', label: 'Packages', right: true, sortable: true, render: (r) => qty(r.packageCount) + ' / ' + qty(r.packageTarget) },
+      { key: 'loggedHours', label: 'Hours', right: true, sortable: true, render: (r) => '<span class="nowrap">' + hrs(r.loggedHours || 0) + (r.expectedHours ? ' / ' + hrs(r.expectedHours) : '') + '</span>' },
       { key: 'commissionAmount', label: 'Commission', right: true, sortable: true, render: (r) => money(r.commissionAmount) },
       { key: 'bonusAmount', label: 'Bonus', right: true, sortable: true, render: (r) => money(r.bonusAmount) },
       { key: 'totalCompensation', label: 'Total', right: true, sortable: true, render: (r) => '<strong>' + money(r.totalCompensation) + '</strong>' },
@@ -1331,7 +1354,8 @@
       ['Packages sold', qty(c.packageCount)],
       ['Commission', money(c.commissionAmount) + ' <span class="muted small">(' + esc(c.commissionTier) + ')</span>'],
       ['Bonus', money(c.bonusAmount) + ' <span class="muted small">(' + esc(c.bonusTier) + ')</span>'],
-      ['Base compensation', money(c.baseCompensation)]
+      ['Base compensation', money(c.baseCompensation) + (c.baseType === 'HOURLY' && c.baseHoursUsed !== null ? ' <span class="muted small">(' + qty(c.baseHoursUsed) + ' h × hourly rate' + (c.baseHoursSource === 'TIME_CLOCK' ? ', from time clock' : c.baseHoursSource === 'EXPECTED' ? ', expected hours' : '') + ')</span>' : '')],
+      ['Hours worked (time clock)', hrs(c.loggedHours || 0) + (c.expectedHours !== null && c.expectedHours !== undefined ? ' of ' + hrs(c.expectedHours) + ' required (' + pct(c.hoursProgress) + ')' : '')]
     ];
     setView('<div class="toolbar no-print" style="margin-bottom:18px"><a class="btn" href="' + back + '">← Back</a><button class="btn primary" onclick="window.print()">' + icon('print') + 'Print statement</button></div>' +
       '<article class="statement">' +
@@ -1363,6 +1387,180 @@
   }
 
   /* ================================================================ */
+  /* Time clock                                                       */
+  /* ================================================================ */
+  const timeOnly = (dt) => (dt ? dt.slice(11, 16) : '');
+  let clockTimer = null;
+
+  /**
+   * Mounts the staff Clock In / Break / Clock Out card into host.
+   * Times are stamped by the server; the browser only displays them.
+   */
+  function mountClock(host, opts) {
+    opts = opts || {};
+    let st = null;
+    let fetchedAt = 0;
+    const shiftSoFar = () => {
+      if (!st || !st.open) return 0;
+      return st.open.hoursSoFar + (st.open.onBreak ? 0 : (Date.now() - fetchedAt) / 3600000);
+    };
+    const render = () => {
+      const o = st.open;
+      const p = st.period;
+      const status = !o ? '<span class="dot off"></span>Not clocked in'
+        : o.onBreak ? '<span class="dot brk"></span>On break · clocked in at ' + esc(o.inLabel)
+          : '<span class="dot on"></span>Clocked in at ' + esc(o.inLabel) + (o.Date !== S.config.today ? ' (' + esc(dateLabel(o.Date)) + ')' : '');
+      host.innerHTML = '<div class="card clock-card">' +
+        '<div class="clock-top"><div><div class="eyebrow">Time clock</div><div class="clock-status">' + status + '</div></div>' +
+        '<div class="clock-elapsed"><div class="label-sm muted">' + (o ? 'This shift' : 'Today') + '</div><div id="clk-el" class="num">' +
+        hrs(o ? shiftSoFar() : st.todayHours) + '</div></div></div>' +
+        (o && o.longOpen ? '<div class="alert warn" style="margin:14px 0 0"><div class="grow">You have been clocked in for over 14 hours. If you forgot to clock out, clock out now and ask the Admin to correct the time.</div></div>' : '') +
+        '<div class="clock-actions">' +
+        (!o ? '<button class="btn primary big" data-a="clockIn">' + icon('timer') + 'Clock in</button>'
+          : '<button class="btn big" data-a="toggleBreak">' + (o.onBreak ? 'End break' : 'Start break') + '</button>' +
+            '<button class="btn gold big" data-a="clockOut">Clock out</button>') +
+        '<input class="clock-note" placeholder="Note (optional)" maxlength="300"></div>' +
+        '<div class="clock-period"><div class="label-sm">' + esc(p.label) + ' · ' + hrs(p.loggedHours) +
+        (p.expectedHours !== null ? ' of ' + hrs(p.expectedHours) + ' required' : ' worked') + '</div>' +
+        (p.expectedHours !== null ? progressBar(p.hoursProgress, 'sm') + '<div class="hint muted small" style="margin-top:4px">' +
+          (p.hoursRemaining > 0 ? hrs(p.hoursRemaining) + ' still required by ' + esc(dateLabel(p.endDate)) : 'Required hours met ✓') + '</div>' : '') +
+        '</div></div>';
+      $$('[data-a]', host).forEach((b) => b.addEventListener('click', () => act(b.getAttribute('data-a'), b)));
+    };
+    const act = async (fn, btn) => {
+      if (fn === 'clockOut') {
+        const ok = await confirmBox({ title: 'Clock out?', message: 'Clock out now? This shift so far: <strong>' + hrs(shiftSoFar()) + '</strong>.', confirmLabel: 'Clock out' });
+        if (!ok) return;
+      }
+      const note = $('.clock-note', host) ? $('.clock-note', host).value : '';
+      withBusy(btn, api(fn, fn === 'toggleBreak' ? undefined : note)).then((r) => {
+        st = r.data;
+        fetchedAt = Date.now();
+        render();
+        toast(r.message);
+        if (opts.onChange) opts.onChange(st);
+      }).catch(fail);
+    };
+    clearInterval(clockTimer);
+    clockTimer = setInterval(() => {
+      if (!document.body.contains(host)) { clearInterval(clockTimer); return; }
+      const el = $('#clk-el', host);
+      if (el && st && st.open) el.textContent = hrs(shiftSoFar());
+    }, 15000);
+    host.innerHTML = loadingHtml;
+    return get('getMyTimeClock').then((d) => {
+      st = d;
+      fetchedAt = Date.now();
+      render();
+      if (opts.onChange) opts.onChange(st);
+    }).catch((e) => { host.innerHTML = '<div class="alert bad">' + esc(e.message) + '</div>'; });
+  }
+
+  function timeEntriesTable(entries, admin) {
+    return table([
+      { key: 'Date', label: 'Date', render: (e) => '<span class="nowrap">' + esc(dateLabel(e.Date)) + '</span>' },
+      admin ? { key: 'staffName', label: 'Staff', primary: true, render: (e) => '<span class="cell-strong">' + esc(e.staffName) + '</span>' } : null,
+      { key: 'in', label: 'In', render: (e) => esc(e.inLabel) },
+      { key: 'out', label: 'Out', render: (e) => e.open ? '<span class="badge Active">' + (e.onBreak ? 'On break' : 'Clocked in') + '</span>' : esc(e.outLabel) + (e.overnight ? ' <span class="muted small">(+1 day)</span>' : '') },
+      { key: 'BreakMinutes', label: 'Break', right: true, render: (e) => (e.BreakMinutes ? e.BreakMinutes + ' min' : '—') },
+      { key: 'Hours', label: 'Hours', right: true, render: (e) => '<strong>' + (e.open ? hrs(e.hoursSoFar) + '…' : hrs(e.Hours)) + '</strong>' },
+      { key: 'Notes', label: 'Notes', render: (e) => '<span class="small">' + esc(e.Notes || '') + '</span>' +
+        (e.Source === 'MANUAL' ? ' <span class="badge">Added by admin</span>' : e.EditedBy ? ' <span class="badge">Corrected</span>' : '') },
+      admin ? { key: 'actions', label: '', render: (e) => e.locked ? '<span class="muted small">Locked</span>'
+        : '<div class="actions one-line"><button class="btn sm" data-tedit="' + esc(e.LogID) + '">Edit</button><button class="btn sm danger" data-tdel="' + esc(e.LogID) + '">Delete</button></div>' } : null
+    ].filter(Boolean), entries, { emptyTitle: 'No time entries yet' });
+  }
+
+  /* STAFF: Time Clock page */
+  async function viewTimeClock() {
+    const v = setView(pageHead('Time Clock', S.user.name) + '<div id="clock-slot"></div>' +
+      '<div class="card section" style="margin-top:18px"><div class="card-head"><h2>My time entries</h2><span class="muted small" id="tc-period"></span></div><div id="tc-list">' + loadingHtml + '</div>' +
+      '<p class="muted small" style="margin:12px 0 0">Times are recorded by the server. If something is wrong (for example you forgot to clock out), ask the Admin to correct it.</p></div>');
+    await mountClock($('#clock-slot', v), {
+      onChange: (st) => {
+        $('#tc-period', v).textContent = st.period.label + ' · ' + dateLabel(st.period.startDate) + ' – ' + dateLabel(st.period.endDate);
+        $('#tc-list', v).innerHTML = timeEntriesTable(st.entries, false);
+      }
+    });
+  }
+
+  /* ADMIN: Time page */
+  async function viewTimeAdmin(month, staffId) {
+    month = month || S.config.currentMonth;
+    staffId = staffId || '';
+    const [users, d] = await Promise.all([loadUsers(), get('getTimeOverview', { month: month, staffId: staffId })]);
+    const v = setView(pageHead('Time', 'Hours · ' + d.monthLabel, '<button class="btn gold" id="add-time">' + icon('plus') + 'Add time entry</button>') +
+      '<div class="filters no-print">' +
+      '<div class="field"><label>Month</label><select id="f-month">' + monthOptions(month, monthRange([month])) + '</select></div>' +
+      '<div class="field"><label>Staff</label><select id="f-staff"><option value="">All staff</option>' + staffOptions(users, staffId, users.map((u) => u.UserID)) + '</select></div>' +
+      '</div>' +
+      (d.clockedIn.length ? '<div class="card section"><div class="card-head"><h2>Clocked in now</h2><span class="muted small">' + d.clockedIn.length + ' working</span></div>' +
+        table([
+          { key: 'staffName', label: 'Staff', primary: true, render: (e) => '<span class="cell-strong">' + esc(e.staffName) + '</span>' },
+          { key: 'since', label: 'Since', render: (e) => esc(e.inLabel) + (e.Date !== S.config.today ? ' <span class="muted small">' + esc(dateLabel(e.Date)) + '</span>' : '') },
+          { key: 'so', label: 'So far', right: true, render: (e) => hrs(e.hoursSoFar) },
+          { key: 'st', label: 'Status', render: (e) => e.longOpen ? '<span class="badge no">Over 14 h — forgot to clock out?</span>' : e.onBreak ? '<span class="badge Pending">On break</span>' : '<span class="badge yes">Working</span>' },
+          { key: 'a', label: '', render: (e) => '<button class="btn sm" data-tedit="' + esc(e.LogID) + '">Edit / clock out</button>' }
+        ], d.clockedIn) + '</div>' : '') +
+      '<div class="card section"><div class="card-head"><h2>Hours vs required</h2><span class="muted small">Required hours come from each staff member\'s schedule. All worked hours count.</span></div>' +
+      table([
+        { key: 'staffName', label: 'Staff', primary: true, render: (r) => '<span class="cell-strong">' + esc(r.staffName) + '</span>' + (r.clockedIn ? ' <span class="badge yes">In</span>' : '') },
+        { key: 'expectedHours', label: 'Required', right: true, render: (r) => (r.expectedHours === null ? '<span class="muted">No schedule</span>' : hrs(r.expectedHours)) },
+        { key: 'loggedHours', label: 'Worked', right: true, render: (r) => '<strong>' + hrs(r.loggedHours) + '</strong>' },
+        { key: 'hoursProgress', label: 'Progress', right: true, render: (r) => (r.hoursProgress === null ? '—' : pct(r.hoursProgress) + progressBar(r.hoursProgress, 'sm')) },
+        { key: 'hoursRemaining', label: 'Still required', right: true, render: (r) => (r.hoursRemaining === null ? '—' : r.hoursRemaining > 0 ? hrs(r.hoursRemaining) : 'Met ✓') },
+        { key: 'entries', label: 'Entries', right: true, render: (r) => String(r.entries) }
+      ], d.summary, { emptyTitle: 'No hours or schedules this month' }) + '</div>' +
+      '<div class="card section"><div class="card-head"><h2>Time entries</h2><span class="muted small">' + d.entries.length + ' entr' + (d.entries.length === 1 ? 'y' : 'ies') + '</span></div>' +
+      timeEntriesTable(d.entries, true) + '</div>');
+
+    const refilter = () => go('time/' + $('#f-month', v).value + ($('#f-staff', v).value ? '/' + $('#f-staff', v).value : ''));
+    $('#f-month', v).addEventListener('change', refilter);
+    $('#f-staff', v).addEventListener('change', refilter);
+    const all = d.entries.concat(d.clockedIn);
+    $('#add-time', v).addEventListener('click', () => openTimeForm(null, users));
+    $$('[data-tedit]', v).forEach((b) => b.addEventListener('click', () => openTimeForm(all.find((e) => e.LogID === b.getAttribute('data-tedit')), users)));
+    $$('[data-tdel]', v).forEach((b) => b.addEventListener('click', async () => {
+      const e = d.entries.find((x) => x.LogID === b.getAttribute('data-tdel'));
+      const ok = await confirmBox({ title: 'Delete time entry?', message: 'Delete <strong>' + esc(e.staffName) + '</strong>\'s entry on ' + esc(dateLabel(e.Date)) +
+        ' (' + esc(e.inLabel) + ' – ' + esc(e.outLabel || 'open') + ', ' + (e.open ? 'open' : hrs(e.Hours)) + ')? This is recorded in the Audit Log.', confirmLabel: 'Delete', danger: true });
+      if (!ok) return;
+      withBusy(b, api('deleteTimeLog', e.LogID)).then((r) => { toast(r.message); route(); }).catch(fail);
+    }));
+  }
+
+  /** Admin add / correct a time entry. Out time earlier than in time = next day. */
+  function openTimeForm(e, users) {
+    modal({
+      title: e ? 'Edit time entry' : 'Add time entry',
+      body: '<div class="form-grid two">' +
+        '<div class="field"><label>Staff member</label><select name="StaffID" required><option value="">Choose…</option>' + staffOptions(users, e ? e.StaffID : '', e ? [e.StaffID] : []) + '</select></div>' +
+        '<div class="field"><label>Date (day the shift started)</label><input type="date" name="Date" value="' + esc(e ? e.Date : S.config.today) + '" max="' + esc(S.config.today) + '"></div>' +
+        '<div class="field"><label>Clock in</label><input type="time" name="InTime" value="' + esc(e ? timeOnly(e.ClockIn) : '09:00') + '"></div>' +
+        '<div class="field"><label>Clock out</label><input type="time" name="OutTime" value="' + esc(e ? timeOnly(e.ClockOut) : '18:00') + '"><span class="help">Leave blank if still working. Earlier than clock-in = next day.</span></div>' +
+        '<div class="field"><label>Break (minutes)</label><input type="number" name="BreakMinutes" min="0" step="1" value="' + esc(e ? e.BreakMinutes || 0 : 60) + '"></div>' +
+        '<div class="field"><label>Hours</label><input readonly id="tf-hours" tabindex="-1"></div>' +
+        '<div class="field span-all"><label>Notes / reason</label><input name="Notes" value="' + esc(e ? e.Notes || '' : '') + '" placeholder="e.g. Forgot to clock out"></div>' +
+        '</div>',
+      submitLabel: e ? 'Save changes' : 'Add entry',
+      onOpen: (form) => {
+        const calc = () => {
+          const i = $('[name=InTime]', form).value, o = $('[name=OutTime]', form).value;
+          if (!i || !o) { $('#tf-hours', form).value = o ? '' : 'Still clocked in'; return; }
+          const [ih, im] = i.split(':').map(Number), [oh, om] = o.split(':').map(Number);
+          let mins = oh * 60 + om - (ih * 60 + im);
+          if (mins <= 0) mins += 1440;
+          mins -= Number($('[name=BreakMinutes]', form).value) || 0;
+          $('#tf-hours', form).value = mins > 0 ? hrs(mins / 60) + ' (estimate — saved value is calculated by the server)' : 'Break is longer than the shift';
+        };
+        $$('input', form).forEach((x) => x.addEventListener('input', calc));
+        calc();
+      },
+      onSubmit: (vals) => api('saveTimeLog', Object.assign({ LogID: e ? e.LogID : '' }, vals)).then((r) => { toast(r.message); route(); })
+    });
+  }
+
+  /* ================================================================ */
   /* STAFF views                                                      */
   /* ================================================================ */
   function scheduleSwitcher(list, current, routeName) {
@@ -1379,14 +1577,19 @@
   async function viewMyDashboard(scheduleId) {
     const d = await get('getMyDashboard', scheduleId || '');
     const first = S.user.name;
-    if (!d.detail) return setView(pageHead('My Dashboard', 'Hi, ' + first) + noSchedule);
+    if (!d.detail) {
+      const e = setView(pageHead('My Dashboard', 'Hi, ' + first) + '<div id="clock-slot" style="margin-bottom:18px"></div>' + noSchedule);
+      return mountClock($('#clock-slot', e));
+    }
     const c = d.detail.calc;
     const v = setView(pageHead(monthLabel(d.detail.schedule.Month) + ' · ' + dateLabel(d.detail.schedule.StartDate) + ' – ' + dateLabel(d.detail.schedule.EndDate), 'Hi, ' + first,
       scheduleSwitcher(d.schedules, d.detail.schedule.ScheduleID)) +
+      '<div id="clock-slot" style="margin-bottom:18px"></div>' +
       estimateBanner(c) + calcCards(c, true) +
       (d.detail.schedule.AdditionalTarget ? '<div class="card section" style="margin-top:18px"><h2>Additional target</h2><p style="margin:6px 0 0">' + esc(d.detail.schedule.AdditionalTarget) + '</p></div>' : '') +
       (d.detail.schedule.SpecialIncentives ? '<div class="card section"><h2>Special incentives</h2><p style="margin:6px 0 0">' + esc(d.detail.schedule.SpecialIncentives) + '</p></div>' : '') +
       '<div class="toolbar" style="margin-top:18px"><a class="btn" href="#/my-sales/' + esc(d.detail.schedule.ScheduleID) + '">View my sales</a><a class="btn" href="#/my-schedule/' + esc(d.detail.schedule.ScheduleID) + '">View my schedule</a></div>');
+    mountClock($('#clock-slot', v));
     bindSwitcher(v, 'home');
   }
 

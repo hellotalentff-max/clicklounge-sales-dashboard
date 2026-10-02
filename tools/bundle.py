@@ -16,7 +16,7 @@ import re
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'src')
 DIST = os.path.join(ROOT, 'dist')
-GS_ORDER = ['Code', 'Api', 'Utils', 'Database', 'Config', 'Audit', 'Users', 'Commission',
+GS_ORDER = ['Code', 'Api', 'Utils', 'Database', 'Config', 'Audit', 'Users', 'Commission', 'Time',
             'Schedules', 'Sales', 'Packages', 'Reports', 'Setup', 'Tests']
 
 

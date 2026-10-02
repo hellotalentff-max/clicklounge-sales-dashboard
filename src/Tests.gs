@@ -81,6 +81,23 @@ function runCommissionTests() {
   check('Test 10: October at 7% recalculates to ₱8,400', octoberLive.commissionAmount, 8400);
   check('Test 10: paid September snapshot still ₱6,000', snapshotToResult_(septSnapshotRow).commissionAmount, 6000);
 
+  // Time clock: worked hours and hourly base.
+  check('Time: 09:00–17:30 with 60 min break = 7.5 h', computeEntryHours_('2026-09-10 09:00:00', '2026-09-10 17:30:00', 60), 7.5);
+  check('Time: overnight 22:00–02:00 = 4 h', computeEntryHours_('2026-09-10 22:00:00', '2026-09-11 02:00:00', 0), 4);
+  check('Time: not clocked out = 0 h', computeEntryHours_('2026-09-10 09:00:00', '', 0), 0);
+  check('Time: all worked hours count toward required hours', sumLoggedHours_([
+    { StaffID: 'A', Date: '2026-09-02', ClockOut: 'x', Hours: 8 },
+    { StaffID: 'A', Date: '2026-09-03', ClockOut: 'x', Hours: 10.5 },
+    { StaffID: 'A', Date: '2026-09-04', ClockOut: '', Hours: null },
+    { StaffID: 'B', Date: '2026-09-03', ClockOut: 'x', Hours: 7 },
+    { StaffID: 'A', Date: '2026-10-01', ClockOut: 'x', Hours: 6 }
+  ], 'A', '2026-09-01', '2026-09-30'), { hours: 18.5, entries: 2 });
+  check('Hourly base uses time-clock hours when Actual hours is blank',
+    computeBase_({ BaseType: 'HOURLY', HourlyRate: 100, ExpectedHours: 90 }, 50).amount, 5000);
+  check('Hourly base prefers Actual hours typed on the schedule',
+    computeBase_({ BaseType: 'HOURLY', HourlyRate: 100, ExpectedHours: 90, ActualHours: 60 }, 50).amount, 6000);
+  check('Fixed base is not affected by hours', computeBase_({ BaseType: 'FIXED', BaseCompensation: 8000, ExpectedHours: 90 }, 12).amount, 8000);
+
   const failed = results.filter(function (r) { return !r.pass; });
   results.forEach(function (r) {
     console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.pass ? '' : '  → expected ' + JSON.stringify(r.expected) + ', got ' + JSON.stringify(r.actual)));

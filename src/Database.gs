@@ -17,7 +17,8 @@ const SHEET = {
   SALES: 'Sales',
   SHARED: 'SharedSales',
   CALCS: 'CommissionCalculations',
-  AUDIT: 'AuditLog'
+  AUDIT: 'AuditLog',
+  TIME: 'TimeLogs'
 };
 
 /**
@@ -77,6 +78,11 @@ const SCHEMA = {
   AuditLog: [
     ['LogID', 'text'], ['User', 'text'], ['Action', 'text'], ['RecordID', 'text'],
     ['PreviousValue', 'text'], ['NewValue', 'text'], ['Reason', 'text'], ['Timestamp', 'datetime']
+  ],
+  TimeLogs: [
+    ['LogID', 'text'], ['StaffID', 'text'], ['Date', 'date'], ['ClockIn', 'datetime'], ['ClockOut', 'datetime'],
+    ['BreakMinutes', 'number'], ['BreakStart', 'datetime'], ['Hours', 'number'], ['Source', 'text'],
+    ['Notes', 'text'], ['CreatedAt', 'datetime'], ['UpdatedAt', 'datetime'], ['EditedBy', 'text']
   ]
 };
 
@@ -261,7 +267,15 @@ function withLock_(fn) {
 
 function assertDatabaseReady_() {
   const ss = getSpreadsheet_();
-  const missing = Object.keys(SCHEMA).filter(function (n) { return !ss.getSheetByName(n); });
+  let missing = Object.keys(SCHEMA).filter(function (n) { return !ss.getSheetByName(n); });
+  if (missing.length && ss.getSheetByName(SHEET.CONFIG)) {
+    // Sheets added in a later version (e.g. TimeLogs) are created automatically,
+    // so upgrading only needs new code — no need to re-run setupDatabase().
+    withLock_(function () {
+      missing.forEach(function (n) { if (!ss.getSheetByName(n)) ensureSheet_(ss, n, []); });
+    });
+    missing = Object.keys(SCHEMA).filter(function (n) { return !ss.getSheetByName(n); });
+  }
   if (missing.length) {
     throw appError_('The database is not set up yet (missing: ' + missing.join(', ') +
       '). The owner must open the Google Sheet → Extensions → Apps Script and run setupDatabase().', 'SETUP');

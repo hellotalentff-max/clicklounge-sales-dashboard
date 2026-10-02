@@ -212,14 +212,28 @@ function progress_(actual, target) {
   return round2_(actual / target * 100);
 }
 
-/** pure — Base compensation for the month (fixed or hourly). */
-function computeBase_(schedule) {
+/**
+ * pure — Base compensation for the month (fixed or hourly).
+ * Hourly base uses, in order: Actual hours typed on the schedule, hours
+ * logged on the time clock, otherwise expected hours (as an estimate).
+ */
+function computeBase_(schedule, loggedHours) {
   const baseType = schedule.BaseType === 'HOURLY' ? 'HOURLY' : 'FIXED';
   const expected = Number(schedule.ExpectedHours) || 0;
   let amount;
   let hoursUsed = null;
+  let hoursSource = null;
   if (baseType === 'HOURLY') {
-    hoursUsed = isBlank_(schedule.ActualHours) ? expected : Number(schedule.ActualHours) || 0;
+    if (!isBlank_(schedule.ActualHours)) {
+      hoursUsed = Number(schedule.ActualHours) || 0;
+      hoursSource = 'ACTUAL';
+    } else if (loggedHours > 0) {
+      hoursUsed = loggedHours;
+      hoursSource = 'TIME_CLOCK';
+    } else {
+      hoursUsed = expected;
+      hoursSource = 'EXPECTED';
+    }
     amount = round2_((Number(schedule.HourlyRate) || 0) * hoursUsed);
   } else {
     amount = round2_(Number(schedule.BaseCompensation) || 0);
@@ -228,6 +242,7 @@ function computeBase_(schedule) {
     amount: amount,
     type: baseType,
     hoursUsed: hoursUsed,
+    hoursSource: hoursSource,
     // Effective hourly rate = Base compensation / Expected hours.
     effectiveHourlyRate: expected > 0 ? round2_(amount / expected) : null
   };
@@ -237,7 +252,8 @@ function computeBase_(schedule) {
  * pure — The full calculation for one schedule from already-loaded data.
  * Used by calculateCommission_ and by the unit tests.
  */
-function computeCommission_(schedule, tiers, bonusTiers, credited) {
+function computeCommission_(schedule, tiers, bonusTiers, credited, hours) {
+  hours = hours || { hours: 0, entries: 0 };
   const counted = credited.filter(function (c) { return c.commissionable; });
   const sales = round2_(sum_(counted, function (c) { return c.creditedAmount; }));
   const packageCount = round2_(sum_(counted, function (c) { return c.packageCredit; }));
@@ -247,7 +263,8 @@ function computeCommission_(schedule, tiers, bonusTiers, credited) {
 
   const tier = computeTierCommission_(tiers, sales, schedule.CommissionStructure);
   const bonus = computeBonus_(bonusTiers, packageCount, schedule.BonusStructure);
-  const base = computeBase_(schedule);
+  const base = computeBase_(schedule, hours.hours);
+  const expectedHours = isBlank_(schedule.ExpectedHours) ? null : Number(schedule.ExpectedHours);
   const finalized = LOCKED_STATUSES.indexOf(schedule.Status) !== -1;
 
   return {
@@ -286,6 +303,13 @@ function computeCommission_(schedule, tiers, bonusTiers, credited) {
     baseCompensation: base.amount,
     baseType: base.type,
     baseHoursUsed: base.hoursUsed,
+    baseHoursSource: base.hoursSource,
+    // Time clock: every completed hour counts toward the required hours.
+    expectedHours: expectedHours,
+    loggedHours: hours.hours,
+    timeEntries: hours.entries,
+    hoursProgress: progress_(hours.hours, expectedHours),
+    hoursRemaining: expectedHours === null ? null : round2_(Math.max(0, expectedHours - hours.hours)),
     effectiveHourlyRate: base.effectiveHourlyRate,
     totalCompensation: round2_(base.amount + tier.amount + bonus.amount),
     status: schedule.Status,
@@ -305,7 +329,8 @@ function computeLiveCommission_(schedule) {
   const bonusTiers = getBonusTiers_(schedule.ScheduleID);
   const credited = creditSalesForStaff_(rows_(SHEET.SALES), rows_(SHEET.SHARED), schedule.StaffID,
     schedule.StartDate, schedule.EndDate, rules);
-  const result = computeCommission_(schedule, tiers, bonusTiers, credited);
+  const hours = sumLoggedHours_(rows_(SHEET.TIME), schedule.StaffID, schedule.StartDate, schedule.EndDate);
+  const result = computeCommission_(schedule, tiers, bonusTiers, credited, hours);
   result.calculatedAt = nowStr_();
   return { result: result, tiers: tiers, bonusTiers: bonusTiers, credited: credited, rules: rules };
 }

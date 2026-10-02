@@ -25,7 +25,9 @@ function apiFunctions_() {
     listSales: listSales, saveSale: saveSale, deleteSale: deleteSale,
     listPackages: listPackages, savePackage: savePackage,
     getReport: getReport, getStatement: getStatement,
-    getAdminDashboard: getAdminDashboard, getMyDashboard: getMyDashboard
+    getAdminDashboard: getAdminDashboard, getMyDashboard: getMyDashboard,
+    getMyTimeClock: getMyTimeClock, clockIn: clockIn, clockOut: clockOut, toggleBreak: toggleBreak,
+    getTimeOverview: getTimeOverview, saveTimeLog: saveTimeLog, deleteTimeLog: deleteTimeLog
   };
 }
 

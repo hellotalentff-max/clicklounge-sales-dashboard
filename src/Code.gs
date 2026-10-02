@@ -99,6 +99,9 @@ function getAdminDashboard(token, month) {
       rows: rows,
       staffWithoutSchedule: missing,
       pendingApproval: rows_(SHEET.SCHEDULES).filter(function (s) { return s.Status === SCHEDULE_STATUS.PENDING; }).length,
+      clockedIn: rows_(SHEET.TIME).filter(function (l) { return !l.ClockOut; }).map(function (l) {
+        return { staffName: userName_(l.StaffID), since: timeLabel_(l.ClockIn), date: l.Date, onBreak: !!l.BreakStart };
+      }),
       totals: {
         sales: total('sales'),
         salesTarget: total('salesTarget'),

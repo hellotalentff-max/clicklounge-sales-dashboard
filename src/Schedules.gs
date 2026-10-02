@@ -373,6 +373,9 @@ function scheduleSummaryRow_(s) {
     totalCompensation: calc.totalCompensation,
     saleCount: calc.saleCount,
     averageSale: calc.averageSale,
+    expectedHours: calc.expectedHours === undefined ? null : calc.expectedHours,
+    loggedHours: calc.loggedHours === undefined ? null : calc.loggedHours,
+    hoursProgress: calc.hoursProgress === undefined ? null : calc.hoursProgress,
     isEstimate: calc.isEstimate
   };
 }

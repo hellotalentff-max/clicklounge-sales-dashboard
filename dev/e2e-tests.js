@@ -52,12 +52,11 @@ function runE2E() {
     eq(rows_(SHEET.USERS).length, 1, 'users');
   });
   t('setupDatabase() is safe to re-run (no duplicates, data kept)', () => {
-    const count = () => Object.keys(SCHEMA).map((n) => M.ss.getSheetByName(n).getLastRow()).join(',');
+    // Every sheet except AuditLog (which records "Ran setupDatabase()") keeps its row count.
+    const count = () => Object.keys(SCHEMA).filter((n) => n !== 'AuditLog').map((n) => n + ':' + M.ss.getSheetByName(n).getLastRow());
     const before = count();
     setupDatabase();
-    const after = count();
-    // Only the AuditLog gains the "Ran setupDatabase()" entry.
-    eq(before.split(',').slice(0, -1), after.split(',').slice(0, -1));
+    eq(count(), before);
   });
 
   let admin;
@@ -356,6 +355,94 @@ function runE2E() {
     const id = ok(apiCall('saveSale', [pagesAdmin, { SaleDate: month + '-05', ClientName: name, PackageID: pkg5000.PackageID, StaffID: A.UserID }])).saleId;
     const s = ok(apiCall('listSales', [pagesAdmin, { month: month }])).sales.find((x) => x.SaleID === id);
     eq(s.ClientName, name);
+  });
+
+  // ---------- Time clock (Time.gs) ----------
+  // A dedicated staff member with an Active schedule covering the last 40 days,
+  // so these tests work on any calendar date (including the 1st of a month).
+  const near = (a, b, tol) => { if (Math.abs(a - b) > (tol || 0.02)) throw new Error('expected ~' + b + ', got ' + a); };
+  const day = (n) => formatDateTime_(parseDateTime_(nowStr_()) - n * 86400000).slice(0, 10);
+  const T = ok(saveUser(pagesAdmin, { Name: 'Staff T', Email: 'staff.t@example.com', Role: 'Staff', Status: 'Active', Position: 'Sales' })).userId;
+  ok(setUserAccessCode(pagesAdmin, T, 'tango-2026'));
+  const tSched = ok(saveSchedule(pagesAdmin, {
+    schedule: { Month: addMonths_(month, 12), StartDate: day(40), EndDate: day(-20), StaffID: T, PackageTarget: 20, SalesTarget: 100000, BaseCompensation: 8000, ExpectedHours: 90, Status: 'Active' },
+    tiers: tiers, bonusTiers: []
+  })).scheduleId;
+  const staffTok = ok(apiCall('login', ['staff.t@example.com', 'tango-2026'])).token;
+  t('Upgrade: a missing TimeLogs sheet is created automatically on sign-in', () => {
+    M.ss.deleteSheet(M.ss.getSheetByName('TimeLogs'));
+    ok(bootstrap(staffTok));
+    eq(!!M.ss.getSheetByName('TimeLogs'), true);
+  });
+  t('Staff clocks in (via the Pages API); a second clock-in is refused', () => {
+    const d = ok(apiCall('clockIn', [staffTok, 'Opening shift']));
+    eq([!!d.open, d.open.Source, d.open.Notes, d.period.expectedHours], [true, 'CLOCK', 'Opening shift', 90]);
+    return err(clockIn(staffTok));
+  });
+  t('Break start / end', () => {
+    eq(ok(toggleBreak(staffTok)).open.onBreak, true);
+    eq(ok(toggleBreak(staffTok)).open.onBreak, false);
+  });
+  t('Clock out records worked hours = time − breaks (3 h shift, 30 min break → 2.5 h)', () => {
+    resetExecutionCaches_();
+    const open = openEntry_(T);
+    const start = formatDateTime_(parseDateTime_(nowStr_()) - 3 * 3600000);
+    updateRow_(SHEET.TIME, 'LogID', open.LogID, { ClockIn: start, Date: start.slice(0, 10), BreakMinutes: 30 });
+    const d = ok(clockOut(staffTok, 'done'));
+    const entry = d.entries.find((e) => e.LogID === open.LogID);
+    near(entry.Hours, 2.5);
+    eq(d.open, null);
+    return entry.Hours + ' h';
+  });
+  t('Clock out when not clocked in is refused', () => err(clockOut(staffTok)));
+  t('Staff cannot add, edit, delete or list everyone\'s time', () => {
+    err(saveTimeLog(staffTok, {}), 'FORBIDDEN');
+    err(deleteTimeLog(staffTok, 'x'), 'FORBIDDEN');
+    err(getTimeOverview(staffTok, {}), 'FORBIDDEN');
+  });
+  t('Admin adds a manual entry 09:00–17:30, 60 min break → 7.5 h', () => {
+    const id = ok(saveTimeLog(pagesAdmin, { StaffID: T, Date: day(2), InTime: '09:00', OutTime: '17:30', BreakMinutes: 60, Notes: 'Forgot to clock' })).logId;
+    eq(findById_(SHEET.TIME, 'LogID', id).Hours, 7.5);
+  });
+  t('Overnight entry 22:00–02:00 → 4 h, dated by its start day', () => {
+    const id = ok(saveTimeLog(pagesAdmin, { StaffID: T, Date: day(4), InTime: '22:00', OutTime: '02:00' })).logId;
+    const r = findById_(SHEET.TIME, 'LogID', id);
+    eq([r.Hours, r.Date, r.ClockOut.slice(0, 10)], [4, day(4), day(3)]);
+  });
+  t('Overlapping entries are refused', () => err(saveTimeLog(pagesAdmin, { StaffID: T, Date: day(2), InTime: '12:00', OutTime: '13:00' })));
+  t('Future times are refused', () => err(saveTimeLog(pagesAdmin, { StaffID: T, Date: day(-2), InTime: '09:00', OutTime: '10:00' })));
+  t('Break longer than shift / bad time format are refused', () => {
+    err(saveTimeLog(pagesAdmin, { StaffID: T, Date: day(6), InTime: '09:00', OutTime: '10:00', BreakMinutes: 90 }));
+    return err(saveTimeLog(pagesAdmin, { StaffID: T, Date: day(6), InTime: '9am', OutTime: '10:00' }));
+  });
+  t('Time inside a Paid month is locked', () => err(saveTimeLog(pagesAdmin, { StaffID: A.UserID, Date: last + '-10', InTime: '09:00', OutTime: '17:00' }), 'LOCKED'));
+  t('Correcting an entry is audited with before/after', () => {
+    const entry = rows_(SHEET.TIME).find((l) => l.StaffID === T && l.Date === day(2));
+    ok(saveTimeLog(pagesAdmin, { LogID: entry.LogID, StaffID: T, Date: day(2), InTime: '09:00', OutTime: '18:00', BreakMinutes: 60 }));
+    const log = ok(getAuditLog(pagesAdmin, { search: 'Corrected time entry' })).entries[0];
+    if (log.PreviousValue.indexOf('7.5 h') === -1 || log.NewValue.indexOf('8 h') === -1) throw new Error(log.PreviousValue + ' → ' + log.NewValue);
+  });
+  t('Schedule counts all worked hours vs required 90 h (2.5 + 8 + 4 = 14.5 h)', () => {
+    const c = ok(getCommission(pagesAdmin, tSched));
+    near(c.loggedHours, 14.5);
+    eq([c.expectedHours, c.timeEntries], [90, 3]);
+    near(c.hoursRemaining, 75.5);
+    return c.loggedHours + ' / 90 h (' + c.hoursProgress + '%)';
+  });
+  t('Admin time overview: clocked-in now, hours vs required, entries', () => {
+    ok(clockIn(staffTok));
+    const o = ok(getTimeOverview(pagesAdmin, { month: day(2).slice(0, 7) }));
+    eq(o.clockedIn.map((c) => c.staffName), ['Staff T']);
+    eq(o.entries.some((e) => e.staffName === 'Staff T'), true);
+    eq(ok(getAdminDashboard(pagesAdmin, month)).clockedIn.length, 1);
+    eq(ok(getMyTimeClock(staffTok)).open !== null, true);
+    ok(clockOut(staffTok));
+  });
+  t('Deleting an entry is audited', () => {
+    const entry = rows_(SHEET.TIME).find((l) => l.StaffID === T && l.Date === day(4));
+    ok(deleteTimeLog(pagesAdmin, entry.LogID));
+    eq(!!findById_(SHEET.TIME, 'LogID', entry.LogID), false);
+    eq(ok(getAuditLog(pagesAdmin, { search: 'Deleted time entry' })).entries.length, 1);
   });
 
   return R;

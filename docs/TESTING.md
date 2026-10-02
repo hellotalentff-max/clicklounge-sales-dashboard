@@ -17,7 +17,7 @@ page in the real deployment.
 
 Run all of them at `http://localhost:8765/dev/tests.html` (see README → Local testing).
 
-**Result: 86 / 86 passed.**
+**Result: 109 / 109 passed.**
 
 ## Specification test cases (§38)
 
@@ -91,6 +91,7 @@ The §14 table (Staff A ₱92,000 → ₱2,760 → ₱10,760; Staff B ₱118,000
 | Duplicate month (§17) | Copies every schedule as Draft. A second run creates nothing. |
 | Reports (§25–26) | Totals equal the sum of rows. A paid month's statement comes from the snapshot (18 sales, 5 tiers, ₱10,760). |
 | Settings | Cannot remove your own Admin email. |
+| Time clock (`Time.gs`) | Missing TimeLogs sheet auto-created on sign-in. Clock in (via the Pages API); double clock-in refused. Break start/end. 3 h shift − 30 min break → 2.5 h. Clock-out without clock-in refused. Staff FORBIDDEN from add/edit/delete/overview. Manual 09:00–17:30 − 60 min → 7.5 h. Overnight 22:00–02:00 → 4 h dated by start day. Overlap, future times, break > shift, bad time format refused. Paid month locked. Corrections and deletions audited with before/after. Schedule shows 14.5 / 90 h. Admin overview lists who is clocked in. Unit: hours maths; hourly base uses time-clock hours unless Actual hours is set; fixed base unaffected. |
 | GitHub Pages API (`Api.gs`) | JSON-P round trip encoded exactly like the browser. Visitor without a session → login. Owner sets own code via the sheet-menu helper and signs in. Admin calls work with the token. Staff token still FORBIDDEN from admin calls. `setupDemoData`, `setupDatabase`, `installDailyTrigger`, `calculateCommission_`, `constructor`, `toString`, `__proto__` all refused. Unsafe callback names refused. Malformed request → friendly error. Accented names and ₱ survive the round trip. |
 
 ## UI checks (local preview, desktop 1360 px and phone 375 px)

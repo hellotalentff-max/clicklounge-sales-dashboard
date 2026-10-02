@@ -315,6 +315,30 @@ For each schedule, the server:
 Until a month is approved, all amounts are labelled **Estimated**. On **Approve**, the
 result is stored as a snapshot. From then on that month always shows the snapshot.
 
+## Time clock (required hours)
+
+**Staff:** **Time Clock** (also shown at the top of My Dashboard) → **Clock in**, **Start
+/ End break**, **Clock out**. An optional note can be added. Times are stamped by the server
+in the studio timezone, so they can't be changed from the phone.
+
+**Admin:** **Time** shows who is clocked in now, **hours worked vs required** per staff
+member for the month, and every entry. **Add time entry** / **Edit** / **Delete** fix
+mistakes (e.g. a forgotten clock-out). An out time earlier than the in time means the shift
+ended the next day. Every correction is recorded in the Audit Log.
+
+How it counts:
+- **Required hours** = the **Expected hours** on each staff member's monthly schedule.
+- **Worked hours** = clock-out − clock-in − breaks. **All worked hours count.**
+- A shift belongs to the day it started. Open shifts count once clocked out.
+- Hours appear on the Admin dashboard, the schedule page, the staff dashboard and the
+  statement. For **hourly** base pay, the app uses Actual hours if typed on the schedule,
+  otherwise the time-clock hours.
+- Entries inside an **Approved/Paid** month are locked, like sales.
+- Shifts open for more than 14 hours are flagged as a possible forgotten clock-out.
+
+Data lives in the **TimeLogs** sheet, which is created automatically the first time the
+updated app is opened (no need to re-run setup).
+
 ## 13. How to create a new month
 1. **Monthly Schedules → Duplicate previous month**. Pick *Copy from* (e.g. September) and
    *Into* (e.g. October).
