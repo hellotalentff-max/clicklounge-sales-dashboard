@@ -18,7 +18,8 @@ const SHEET = {
   SHARED: 'SharedSales',
   CALCS: 'CommissionCalculations',
   AUDIT: 'AuditLog',
-  TIME: 'TimeLogs'
+  TIME: 'TimeLogs',
+  ACTIVITY: 'ActivityLogs'
 };
 
 /**
@@ -84,11 +85,15 @@ const SCHEMA = {
     ['BreakMinutes', 'number'], ['BreakStart', 'datetime'], ['Hours', 'number'], ['Source', 'text'],
     ['Notes', 'text'], ['CreatedAt', 'datetime'], ['UpdatedAt', 'datetime'], ['EditedBy', 'text'],
     ['LastConfirmedAt', 'datetime'], ['ConfirmedChecks', 'number'], ['MissedChecks', 'number'], ['MissedDetail', 'text']
+  ],
+  ActivityLogs: [
+    ['ActivityID', 'text'], ['TimeLogID', 'text'], ['StaffID', 'text'], ['Date', 'date'], ['LoggedAt', 'datetime'],
+    ['Activity', 'text'], ['Note', 'text'], ['Source', 'text']
   ]
 };
 
 /** Bump when SCHEMA or Config defaults change: existing databases upgrade themselves on next sign-in. */
-const SCHEMA_VERSION = '3';
+const SCHEMA_VERSION = '4';
 
 /* Per-execution caches. Each google.script.run call is a fresh execution;
  * api_() also resets these so local test harnesses behave the same way. */

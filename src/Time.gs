@@ -164,6 +164,7 @@ function publicTimeEntry_(l, nowStr) {
     }
   }
   out.missedChecks = out.open ? out.check.totalMissed : Number(l.MissedChecks) || 0;
+  out.activities = entryActivities_(l, nowStr);
   out.confirmedChecks = Number(l.ConfirmedChecks) || 0;
   return out;
 }
@@ -232,18 +233,21 @@ function getMyTimeClock(token) {
   });
 }
 
-function clockIn(token, note) {
+function clockIn(token, note, activity) {
   return api_(function () {
     const user = requireUser_(token);
     return withLock_(function () {
       const open = openEntry_(user.userId);
       if (open) throw appError_('You are already clocked in since ' + timeLabel_(open.ClockIn) + ' (' + dateLabel_(open.Date) + ').');
+      const act = isBlank_(activity) ? '' : validateActivity_(activity);
       const now = nowStr_();
-      insertRows_(SHEET.TIME, [{
+      const entry = {
         LogID: newId_('TIM'), StaffID: user.userId, Date: now.slice(0, 10), ClockIn: now, ClockOut: '',
         BreakMinutes: 0, BreakStart: '', Hours: null, Source: 'CLOCK',
-        Notes: str_(note, 'Note', { maxLength: 300 }), CreatedAt: now, UpdatedAt: now, EditedBy: ''
-      }]);
+        Notes: act ? '' : str_(note, 'Note', { maxLength: 300 }), CreatedAt: now, UpdatedAt: now, EditedBy: ''
+      };
+      insertRows_(SHEET.TIME, [entry]);
+      if (act) recordActivity_(entry, act, note, 'CLOCK_IN', now);
       return ok_(timeClockState_(user.userId), 'Clocked in at ' + timeLabel_(now) + '.');
     });
   });
@@ -272,13 +276,15 @@ function toggleBreak(token) {
 }
 
 /** "Yes, I'm still working" — records the confirmation (late answers still count as missed). */
-function confirmStillWorking(token) {
+function confirmStillWorking(token, activity, note) {
   return api_(function () {
     const user = requireUser_(token);
     return withLock_(function () {
       const open = openEntry_(user.userId);
       if (!open) throw appError_('You are not clocked in.');
+      const act = isBlank_(activity) ? '' : validateActivity_(activity);
       const now = nowStr_();
+      if (act) recordActivity_(open, act, note, 'CHECK', now);
       const patch = Object.assign(settleChecks_(open, now), {
         LastConfirmedAt: now, ConfirmedChecks: (Number(open.ConfirmedChecks) || 0) + 1, UpdatedAt: now
       });
@@ -357,7 +363,19 @@ function getTimeOverview(token, filters) {
       return Object.assign(publicTimeEntry_(l, now), { staffName: userName_(l.StaffID), locked: !!s });
     }).sort(function (a, b) { return a.ClockIn < b.ClockIn ? 1 : -1; });
 
-    return { month: month, monthLabel: monthLabel_(month), now: now, clockedIn: clockedIn, summary: summary, entries: entries };
+    // Hours per activity this month, per staff member and for the whole studio.
+    const monthEntries = logs.filter(function (l) { return l.Date >= from && l.Date <= to && (!filters.staffId || l.StaffID === filters.staffId); });
+    const perStaff = {};
+    monthEntries.forEach(function (l) {
+      (perStaff[l.StaffID] = perStaff[l.StaffID] || []).push(entryActivities_(l, now).totals);
+    });
+    const activityByStaff = Object.keys(perStaff).map(function (id) {
+      return { staffId: id, staffName: userName_(id), totals: mergeActivityTotals_(perStaff[id]) };
+    }).sort(function (a, b) { return a.staffName.localeCompare(b.staffName); });
+    const activityTotals = mergeActivityTotals_(activityByStaff.map(function (s) { return s.totals; }));
+
+    return { month: month, monthLabel: monthLabel_(month), now: now, clockedIn: clockedIn, summary: summary, entries: entries,
+      activityByStaff: activityByStaff, activityTotals: activityTotals };
   });
 }
 
@@ -447,6 +465,7 @@ function deleteTimeLog(token, logId) {
       if (!l) throw appError_('Time entry not found. It may already have been deleted.', 'NOT_FOUND');
       assertTimeUnlocked_(l.StaffID, l.Date);
       deleteWhere_(SHEET.TIME, function (r) { return r.LogID === logId; });
+      deleteWhere_(SHEET.ACTIVITY, function (r) { return r.TimeLogID === logId; });
       logAudit_(admin, 'Deleted time entry (' + userName_(l.StaffID) + ', ' + dateLabel_(l.Date) + ', ' +
         (l.Hours === null || l.Hours === '' ? 'open' : l.Hours + ' h') + ')', logId, publicRow_(l), '');
       return ok_(null, 'Time entry deleted.');

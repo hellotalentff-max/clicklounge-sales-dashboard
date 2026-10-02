@@ -46,7 +46,8 @@ function configDefaults_() {
     ['TemplateCommissionStructure', 'TIERED_WHOLE', 'TIERED_WHOLE (reached tier rate applies to all sales) or TIERED_PROGRESSIVE.'],
     ['TemplateBonusStructure', 'HIGHEST', 'HIGHEST (highest applicable bonus only) or CUMULATIVE.'],
     ['TimeCheckIntervalMinutes', '30', 'Ask clocked-in staff "Are you still working?" every N minutes (0 = off).'],
-    ['TimeCheckResponseMinutes', '15', 'Minutes staff have to answer before the check is flagged as missed.']
+    ['TimeCheckResponseMinutes', '15', 'Minutes staff have to answer before the check is flagged as missed.'],
+    ['ActivityOptions', defaultActivities_().join('\n'), 'Activities staff choose from when clocking in and at each check (one per line).']
   ];
 }
 
@@ -128,6 +129,7 @@ function publicConfig_() {
     commissionBasisLabel: COMMISSION_BASIS[rules.basis],
     timeCheckMinutes: timeCheckSettings_().interval,
     timeCheckResponseMinutes: timeCheckSettings_().window,
+    activityOptions: activityOptions_(),
     paymentStatuses: PAYMENT_STATUSES,
     bookingStatuses: BOOKING_STATUSES,
     scheduleStatuses: Object.keys(SCHEDULE_STATUS).map(function (k) { return SCHEDULE_STATUS[k]; })
@@ -150,6 +152,7 @@ function getSettings(token) {
       Timezone: cfg.Timezone || tz_(),
       TimeCheckIntervalMinutes: timeCheckSettings_().interval,
       TimeCheckResponseMinutes: timeCheckSettings_().window,
+      ActivityOptions: activityOptions_().join('\n'),
       AppVersion: cfg.AppVersion || APP_VERSION
     };
   });
@@ -182,7 +185,18 @@ function saveSettings(token, input) {
       if (checkEvery > 0 && checkEvery < 5) throw appError_('The still-working check interval must be 0 (off) or at least 5 minutes.');
       if (checkEvery > 0 && checkAnswer >= checkEvery) throw appError_('The time to answer must be shorter than the check interval.');
 
+      // Not sent (e.g. an older page) → keep the current list.
+      const activities = String(input.ActivityOptions === undefined || input.ActivityOptions === null ? activityOptions_().join('\n') : input.ActivityOptions).split(/\r?\n/).map(function (s) { return s.trim(); }).filter(Boolean);
+      if (!activities.length) throw appError_('Add at least one activity.');
+      if (activities.length > 30) throw appError_('Use at most 30 activities.');
+      activities.forEach(function (a) {
+        if (a.length > 60) throw appError_('Activity "' + a.slice(0, 20) + '…" is too long (max 60 characters).');
+        if (a === UNSPECIFIED_ACTIVITY) throw appError_('"' + UNSPECIFIED_ACTIVITY + '" is reserved. Please use a different name.');
+      });
+      if (activities.some(function (a, i) { return activities.indexOf(a) !== i; })) throw appError_('Each activity can only be listed once.');
+
       setConfigValues_({
+        ActivityOptions: activities.join('\n'),
         TimeCheckIntervalMinutes: checkEvery,
         TimeCheckResponseMinutes: checkAnswer,
         StudioName: studioName,

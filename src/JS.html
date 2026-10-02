@@ -572,7 +572,7 @@
         '<button class="btn gold" id="dash-sale">' + icon('plus') + 'Record sale</button>') +
       (d.pendingApproval ? '<div class="alert warn"><div class="grow"><strong>' + d.pendingApproval + ' schedule(s) awaiting approval.</strong> Check the sales, then approve.</div><a class="btn sm" href="#/schedules/all/Pending Approval">Review</a></div>' : '') +
       (d.clockedIn && d.clockedIn.length ? '<div class="alert ok"><div class="grow"><strong>Clocked in now:</strong> ' +
-        d.clockedIn.map((c) => esc(c.staffName) + ' <span class="muted">(since ' + esc(c.since) + (c.date !== S.config.today ? ', ' + esc(dateLabel(c.date)) : '') + (c.onBreak ? ', on break' : '') + ')</span>' +
+        d.clockedIn.map((c) => esc(c.staffName) + ' <span class="muted">(since ' + esc(c.since) + (c.date !== S.config.today ? ', ' + esc(dateLabel(c.date)) : '') + (c.onBreak ? ', on break' : '') + ')</span>' + (c.activity ? ' — ' + esc(c.activity) : '') +
           (c.missedChecks ? ' <span class="badge no">' + c.missedChecks + ' missed check' + (c.missedChecks === 1 ? '' : 's') + '</span>' : '')).join(', ') +
         '</div><a class="btn sm" href="#/time">Time</a></div>' : '') +
       (d.staffWithoutSchedule.length ? '<div class="alert info"><div class="grow">No ' + esc(d.monthLabel) + ' schedule yet for: <strong>' +
@@ -1338,6 +1338,7 @@
       '<div class="field span-2"><label>Admin emails</label><textarea name="AdminEmails">' + esc(s.AdminEmails) + '</textarea><span class="help">Comma-separated. These accounts get full Admin access. Stored in the Config sheet.</span></div>' +
       '<div class="field"><label>“Are you still working?” check every (minutes)</label><input type="number" min="0" step="5" name="TimeCheckIntervalMinutes" value="' + esc(s.TimeCheckIntervalMinutes) + '"><span class="help">Asked while staff are clocked in. 0 = off.</span></div>' +
       '<div class="field"><label>Minutes to answer before it counts as missed</label><input type="number" min="1" step="1" name="TimeCheckResponseMinutes" value="' + esc(s.TimeCheckResponseMinutes) + '"><span class="help">Missed checks are flagged on the Time page; the shift stays open.</span></div>' +
+      '<div class="field span-2"><label>Activities staff can choose (one per line)</label><textarea name="ActivityOptions" style="min-height:160px">' + esc(s.ActivityOptions) + '</textarea><span class="help">Shown when staff clock in, at each “still working?” check, and under Switch activity.</span></div>' +
       '<div class="field"><label>App version</label><input readonly value="' + esc(s.AppVersion) + '"></div>' +
       '</div><div class="form-error" id="set-error" hidden style="margin-top:16px"></div>' +
       '<div class="toolbar" style="margin-top:20px;justify-content:flex-end"><button class="btn primary" type="submit">Save settings</button></div></form>' +
@@ -1403,6 +1404,12 @@
   /* Time clock                                                       */
   /* ================================================================ */
   const timeOnly = (dt) => (dt ? dt.slice(11, 16) : '');
+  function activitySelect(cls, selected, placeholder) {
+    return '<select class="' + cls + '"><option value="">' + esc(placeholder || 'What are you working on?') + '</option>' +
+      (S.config.activityOptions || []).map((a) => '<option' + (a === selected ? ' selected' : '') + '>' + esc(a) + '</option>').join('') + '</select>';
+  }
+  /** "Social media 3h 30m · Admin work 1h" */
+  const activitySummary = (totals) => (totals || []).map((x) => esc(x.activity) + ' <span class="muted">' + hrs(x.hours) + '</span>').join(' · ');
   let clockTimer = null;
 
   /**
@@ -1428,11 +1435,17 @@
         '<div class="clock-elapsed"><div class="label-sm muted">' + (o ? 'This shift' : 'Today') + '</div><div id="clk-el" class="num">' +
         hrs(o ? shiftSoFar() : st.todayHours) + '</div></div></div>' +
         (o && o.longOpen ? '<div class="alert warn" style="margin:14px 0 0"><div class="grow">You have been clocked in for over 14 hours. If you forgot to clock out, clock out now and ask the Admin to correct the time.</div></div>' : '') +
+        (o && o.activities && o.activities.current ? '<div class="clock-now">Now: <strong>' + esc(o.activities.current.activity) + '</strong> since ' +
+          esc(o.activities.current.since) + (o.activities.current.note ? ' — <span class="muted">' + esc(o.activities.current.note) + '</span>' : '') + '</div>'
+          : o ? '<div class="clock-now muted">Tell us what you\'re working on below.</div>' : '') +
+        '<div class="clock-activity">' + activitySelect('clock-act', '', o ? 'Switch activity…' : 'What will you start on?') +
+        '<input class="clock-note" placeholder="Note (optional), e.g. which client" maxlength="300">' +
+        (o ? '<button class="btn" data-a="logActivity">Update</button>' : '') + '</div>' +
         '<div class="clock-actions">' +
         (!o ? '<button class="btn primary big" data-a="clockIn">' + icon('timer') + 'Clock in</button>'
           : '<button class="btn big" data-a="toggleBreak">' + (o.onBreak ? 'End break' : 'Start break') + '</button>' +
             '<button class="btn gold big" data-a="clockOut">Clock out</button>') +
-        '<input class="clock-note" placeholder="Note (optional)" maxlength="300"></div>' +
+        '</div>' +
         (o && o.check && o.check.status !== 'off' ? '<div class="clock-check small">' +
           (o.check.status === 'paused' ? 'Still-working checks are paused during your break.'
             : o.check.status === 'ok' ? 'Next “Are you still working?” check at <strong>' + esc(timeLabelJs(o.check.nextCheckAt)) + '</strong>. Keep this app open to see it.'
@@ -1455,7 +1468,10 @@
         if (!ok) return;
       }
       const note = $('.clock-note', host) ? $('.clock-note', host).value : '';
-      withBusy(btn, api(fn, fn === 'toggleBreak' ? undefined : note)).then((r) => {
+      const activity = $('.clock-act', host) ? $('.clock-act', host).value : '';
+      if (fn === 'logActivity' && !activity) return toast('Choose what you are working on first.', 'error');
+      const args = fn === 'clockIn' ? [note, activity] : fn === 'logActivity' ? [activity, note] : fn === 'clockOut' ? [note] : [];
+      withBusy(btn, api.apply(null, [fn].concat(args))).then((r) => {
         st = r.data;
         fetchedAt = Date.now();
         render();
@@ -1544,6 +1560,8 @@
         try { new Notification('Are you still working?', { body: 'Tap to confirm in the ClickLounge app.', tag: 'cl-still-working' }); } catch (e) { /* ignore */ }
       }
     }
+    const keepAct = $('.chk-act', Check.el) ? $('.chk-act', Check.el).value : (st.open.activities && st.open.activities.current ? st.open.activities.current.activity : '');
+    const keepNote = $('.chk-note', Check.el) ? $('.chk-note', Check.el).value : '';
     Check.el.innerHTML = '<div class="modal check-modal" role="alertdialog" aria-labelledby="chk-t">' +
       '<div class="modal-body" style="text-align:center;padding-top:28px">' +
       '<div class="check-icon">' + icon('timer') + '</div>' +
@@ -1551,6 +1569,8 @@
       '<p class="muted" style="margin:6px 0 0">You clocked in at ' + esc(st.open.inLabel) + ' · this shift ' + hrs(st.open.hoursSoFar) + '</p>' +
       (c.status === 'due' ? '<p style="margin:12px 0 0">Please confirm within <strong id="chk-left"></strong>.</p>' : '<p style="margin:12px 0 0"><strong>This check is overdue.</strong> Please confirm now.</p>') +
       missedText +
+      '<div class="check-activity"><label class="label-sm">What are you working on now?</label>' + activitySelect('chk-act', keepAct, 'Choose an activity…') +
+      '<input class="chk-note" placeholder="Note (optional), e.g. which client" maxlength="300" value="' + esc(keepNote) + '"></div>' +
       '<div class="form-error" hidden style="margin-top:12px"></div>' +
       '</div><div class="modal-foot" style="justify-content:center">' +
       '<button class="btn" data-c="out">No — clock me out</button>' +
@@ -1564,7 +1584,9 @@
       if (name === 'time' || name === 'home' || name === '') route();
     };
     $('[data-c=yes]', Check.el).addEventListener('click', (e) => {
-      withBusy(e.currentTarget, api('confirmStillWorking')).then(done).catch((err) => { errBox.textContent = err.message; errBox.hidden = false; });
+      const act = $('.chk-act', Check.el).value;
+      if (!act) { errBox.textContent = 'Please choose what you are working on.'; errBox.hidden = false; return; }
+      withBusy(e.currentTarget, api('confirmStillWorking', act, $('.chk-note', Check.el).value)).then(done).catch((err) => { errBox.textContent = err.message; errBox.hidden = false; });
     });
     $('[data-c=out]', Check.el).addEventListener('click', (e) => {
       withBusy(e.currentTarget, api('clockOut', 'Clocked out from the still-working check')).then(done)
@@ -1596,6 +1618,9 @@
       { key: 'out', label: 'Out', render: (e) => e.open ? '<span class="badge Active">' + (e.onBreak ? 'On break' : 'Clocked in') + '</span>' : esc(e.outLabel) + (e.overnight ? ' <span class="muted small">(+1 day)</span>' : '') },
       { key: 'BreakMinutes', label: 'Break', right: true, render: (e) => (e.BreakMinutes ? e.BreakMinutes + ' min' : '—') },
       { key: 'Hours', label: 'Hours', right: true, render: (e) => '<strong>' + (e.open ? hrs(e.hoursSoFar) + '…' : hrs(e.Hours)) + '</strong>' },
+      { key: 'activities', label: 'Activities', render: (e) => (e.activities && e.activities.totals.length
+          ? '<div class="small">' + activitySummary(e.activities.totals) + '</div><a href="#" class="small" data-timeline="' + esc(e.LogID) + '">Timeline</a>'
+          : '<span class="muted small">—</span>') },
       { key: 'checks', label: 'Checks', render: (e) => (e.missedChecks ? '<span class="badge no" title="Missed at ' + esc(e.MissedDetail || '') + '">' + e.missedChecks + ' missed</span>' +
           (e.MissedDetail ? '<div class="cell-sub">' + esc(e.MissedDetail) + '</div>' : '') : '') +
         (e.confirmedChecks ? ' <span class="badge yes">' + e.confirmedChecks + ' ✓</span>' : '') +
@@ -1607,6 +1632,29 @@
     ].filter(Boolean), entries, { emptyTitle: 'No time entries yet' });
   }
 
+  /** Wires "Timeline" links in a time-entries table. */
+  function bindTimelines(root, entries) {
+    $$('[data-timeline]', root).forEach((a) => a.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      const e = entries.find((x) => x.LogID === a.getAttribute('data-timeline'));
+      if (!e) return;
+      modal({
+        title: (e.staffName ? e.staffName + ' · ' : '') + dateLabel(e.Date),
+        wide: true,
+        cancelLabel: 'Close',
+        body: '<p class="muted small" style="margin:0">' + esc(e.inLabel) + ' – ' + esc(e.open ? 'now' : e.outLabel) + ' · ' +
+          (e.open ? hrs(e.hoursSoFar) + ' so far' : hrs(e.Hours) + ' worked') + (e.BreakMinutes ? ' · ' + e.BreakMinutes + ' min break' : '') +
+          '. Hours per activity share the worked hours, so breaks are taken out proportionally.</p>' +
+          table([
+            { key: 'when', label: 'Time', render: (s) => '<span class="nowrap">' + esc(s.fromLabel) + ' – ' + esc(s.toLabel) + '</span>' },
+            { key: 'activity', label: 'Activity', primary: true, render: (s) => '<span class="cell-strong">' + esc(s.activity) + '</span>' + (s.note ? '<div class="cell-sub">' + esc(s.note) + '</div>' : '') },
+            { key: 'hours', label: 'Hours', right: true, render: (s) => hrs(s.hours) }
+          ], e.activities.segments) +
+          '<div class="small" style="margin-top:6px"><strong>Totals:</strong> ' + activitySummary(e.activities.totals) + '</div>'
+      });
+    }));
+  }
+
   /* STAFF: Time Clock page */
   async function viewTimeClock() {
     const v = setView(pageHead('Time Clock', S.user.name) + '<div id="clock-slot"></div>' +
@@ -1616,6 +1664,7 @@
       onChange: (st) => {
         $('#tc-period', v).textContent = st.period.label + ' · ' + dateLabel(st.period.startDate) + ' – ' + dateLabel(st.period.endDate);
         $('#tc-list', v).innerHTML = timeEntriesTable(st.entries, false);
+        bindTimelines($('#tc-list', v), st.entries);
       }
     });
   }
@@ -1635,6 +1684,8 @@
           { key: 'staffName', label: 'Staff', primary: true, render: (e) => '<span class="cell-strong">' + esc(e.staffName) + '</span>' },
           { key: 'since', label: 'Since', render: (e) => esc(e.inLabel) + (e.Date !== S.config.today ? ' <span class="muted small">' + esc(dateLabel(e.Date)) + '</span>' : '') },
           { key: 'so', label: 'So far', right: true, render: (e) => hrs(e.hoursSoFar) },
+          { key: 'now', label: 'Working on', render: (e) => e.activities && e.activities.current ? '<span class="cell-strong">' + esc(e.activities.current.activity) + '</span>' +
+            (e.activities.current.note ? '<div class="cell-sub">' + esc(e.activities.current.note) + '</div>' : '') + '<div class="cell-sub">since ' + esc(e.activities.current.since) + '</div>' : '<span class="muted small">Not specified</span>' },
           { key: 'st', label: 'Status', render: (e) => (e.longOpen ? '<span class="badge no">Over 14 h — forgot to clock out?</span>' : e.onBreak ? '<span class="badge Pending">On break</span>' : '<span class="badge yes">Working</span>') +
             (e.check && e.check.status === 'due' ? ' <span class="badge Pending">Check waiting</span>' : '') +
             (e.missedChecks ? ' <span class="badge no">' + e.missedChecks + ' missed check' + (e.missedChecks === 1 ? '' : 's') + '</span>' : '') },
@@ -1650,6 +1701,15 @@
         { key: 'entries', label: 'Entries', right: true, render: (r) => String(r.entries) },
         { key: 'missedChecks', label: 'Missed checks', right: true, render: (r) => (r.missedChecks ? '<span class="badge no">' + r.missedChecks + '</span>' : '0') }
       ], d.summary, { emptyTitle: 'No hours or schedules this month' }) + '</div>' +
+      (d.activityTotals && d.activityTotals.length ? '<div class="card section"><div class="card-head"><h2>Time by activity</h2><span class="muted small">What the worked hours were spent on (from staff check-ins)</span></div>' +
+        '<div class="activity-bars">' + d.activityTotals.map((x) => {
+          const max = d.activityTotals[0].hours || 1;
+          return '<div class="abar"><span class="abar-label">' + esc(x.activity) + '</span><span class="abar-track"><span style="width:' + Math.max(2, x.hours / max * 100) + '%"></span></span><span class="abar-val">' + hrs(x.hours) + '</span></div>';
+        }).join('') + '</div>' +
+        table([
+          { key: 'staffName', label: 'Staff', primary: true, render: (r) => '<span class="cell-strong">' + esc(r.staffName) + '</span>' },
+          { key: 'totals', label: 'Hours by activity', render: (r) => '<span class="small">' + activitySummary(r.totals) + '</span>' }
+        ], d.activityByStaff) + '</div>' : '') +
       '<div class="card section"><div class="card-head"><h2>Time entries</h2><span class="muted small">' + d.entries.length + ' entr' + (d.entries.length === 1 ? 'y' : 'ies') + '</span></div>' +
       timeEntriesTable(d.entries, true) + '</div>');
 
@@ -1657,6 +1717,7 @@
     $('#f-month', v).addEventListener('change', refilter);
     $('#f-staff', v).addEventListener('change', refilter);
     const all = d.entries.concat(d.clockedIn);
+    bindTimelines(v, all);
     $('#add-time', v).addEventListener('click', () => openTimeForm(null, users));
     $$('[data-tedit]', v).forEach((b) => b.addEventListener('click', () => openTimeForm(all.find((e) => e.LogID === b.getAttribute('data-tedit')), users)));
     $$('[data-tdel]', v).forEach((b) => b.addEventListener('click', async () => {

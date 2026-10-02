@@ -109,6 +109,21 @@ function runCommissionTests() {
   check('Check: paused during a break', cs('2026-10-02 11:00:00', Object.assign({}, shift, { BreakStart: '2026-10-02 10:40:00' })), ['paused', 0]);
   check('Check: interval 0 switches checks off', checkStatus_(shift, '2026-10-02 12:00:00', 0, 15).status, 'off');
 
+  // Activity check-ins: hours per activity share the WORKED hours (breaks removed proportionally).
+  const day8 = { LogID: 'L1', ClockIn: '2026-10-02 09:00:00', ClockOut: '2026-10-02 17:00:00', Hours: 7 };
+  const acts = activitySegments_(day8, [
+    { LoggedAt: '2026-10-02 09:00:00', Activity: 'Social media posting', Note: '' },
+    { LoggedAt: '2026-10-02 13:00:00', Activity: 'Admin work', Note: 'Invoices' }
+  ], 7, '2026-10-02 18:00:00');
+  check('Activity: 8 h shift with 1 h break split 4 h / 4 h → 3.5 h each (adds up to 7 h worked)',
+    acts.totals.map(function (x) { return [x.activity, x.hours]; }).sort(), [['Admin work', 3.5], ['Social media posting', 3.5]]);
+  const late = activitySegments_(day8, [{ LoggedAt: '2026-10-02 10:00:00', Activity: 'Content creation' }], 8, '');
+  check('Activity: time before the first check-in shows as "Not specified"',
+    late.totals.map(function (x) { return [x.activity, x.hours]; }), [['Content creation', 7], ['Not specified', 1]]);
+  const live = activitySegments_({ LogID: 'L2', ClockIn: '2026-10-02 09:00:00', ClockOut: '' },
+    [{ LoggedAt: '2026-10-02 09:00:00', Activity: 'Client follow-ups', Note: 'Leads' }], 2, '2026-10-02 11:00:00');
+  check('Activity: open shift shows the current activity', [live.current.activity, live.totals[0].hours], ['Client follow-ups', 2]);
+
   const failed = results.filter(function (r) { return !r.pass; });
   results.forEach(function (r) {
     console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.pass ? '' : '  → expected ' + JSON.stringify(r.expected) + ', got ' + JSON.stringify(r.actual)));

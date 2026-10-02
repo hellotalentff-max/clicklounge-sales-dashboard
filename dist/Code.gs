@@ -104,7 +104,8 @@ function getAdminDashboard(token, month) {
       pendingApproval: rows_(SHEET.SCHEDULES).filter(function (s) { return s.Status === SCHEDULE_STATUS.PENDING; }).length,
       clockedIn: rows_(SHEET.TIME).filter(function (l) { return !l.ClockOut; }).map(function (l) {
         const e = publicTimeEntry_(l, nowStr_());
-        return { staffName: userName_(l.StaffID), since: timeLabel_(l.ClockIn), date: l.Date, onBreak: !!l.BreakStart, missedChecks: e.missedChecks, checkStatus: e.check.status };
+        return { staffName: userName_(l.StaffID), since: timeLabel_(l.ClockIn), date: l.Date, onBreak: !!l.BreakStart, missedChecks: e.missedChecks, checkStatus: e.check.status,
+          activity: e.activities.current ? e.activities.current.activity : '' };
       }),
       totals: {
         sales: total('sales'),
@@ -197,7 +198,7 @@ function apiFunctions_() {
     listPackages: listPackages, savePackage: savePackage,
     getReport: getReport, getStatement: getStatement,
     getAdminDashboard: getAdminDashboard, getMyDashboard: getMyDashboard,
-    getMyTimeClock: getMyTimeClock, clockIn: clockIn, clockOut: clockOut, toggleBreak: toggleBreak, confirmStillWorking: confirmStillWorking,
+    getMyTimeClock: getMyTimeClock, clockIn: clockIn, clockOut: clockOut, toggleBreak: toggleBreak, confirmStillWorking: confirmStillWorking, logActivity: logActivity,
     getTimeOverview: getTimeOverview, saveTimeLog: saveTimeLog, deleteTimeLog: deleteTimeLog
   };
 }
@@ -510,7 +511,8 @@ const SHEET = {
   SHARED: 'SharedSales',
   CALCS: 'CommissionCalculations',
   AUDIT: 'AuditLog',
-  TIME: 'TimeLogs'
+  TIME: 'TimeLogs',
+  ACTIVITY: 'ActivityLogs'
 };
 
 /**
@@ -576,11 +578,15 @@ const SCHEMA = {
     ['BreakMinutes', 'number'], ['BreakStart', 'datetime'], ['Hours', 'number'], ['Source', 'text'],
     ['Notes', 'text'], ['CreatedAt', 'datetime'], ['UpdatedAt', 'datetime'], ['EditedBy', 'text'],
     ['LastConfirmedAt', 'datetime'], ['ConfirmedChecks', 'number'], ['MissedChecks', 'number'], ['MissedDetail', 'text']
+  ],
+  ActivityLogs: [
+    ['ActivityID', 'text'], ['TimeLogID', 'text'], ['StaffID', 'text'], ['Date', 'date'], ['LoggedAt', 'datetime'],
+    ['Activity', 'text'], ['Note', 'text'], ['Source', 'text']
   ]
 };
 
 /** Bump when SCHEMA or Config defaults change: existing databases upgrade themselves on next sign-in. */
-const SCHEMA_VERSION = '3';
+const SCHEMA_VERSION = '4';
 
 /* Per-execution caches. Each google.script.run call is a fresh execution;
  * api_() also resets these so local test harnesses behave the same way. */
@@ -832,7 +838,8 @@ function configDefaults_() {
     ['TemplateCommissionStructure', 'TIERED_WHOLE', 'TIERED_WHOLE (reached tier rate applies to all sales) or TIERED_PROGRESSIVE.'],
     ['TemplateBonusStructure', 'HIGHEST', 'HIGHEST (highest applicable bonus only) or CUMULATIVE.'],
     ['TimeCheckIntervalMinutes', '30', 'Ask clocked-in staff "Are you still working?" every N minutes (0 = off).'],
-    ['TimeCheckResponseMinutes', '15', 'Minutes staff have to answer before the check is flagged as missed.']
+    ['TimeCheckResponseMinutes', '15', 'Minutes staff have to answer before the check is flagged as missed.'],
+    ['ActivityOptions', defaultActivities_().join('\n'), 'Activities staff choose from when clocking in and at each check (one per line).']
   ];
 }
 
@@ -914,6 +921,7 @@ function publicConfig_() {
     commissionBasisLabel: COMMISSION_BASIS[rules.basis],
     timeCheckMinutes: timeCheckSettings_().interval,
     timeCheckResponseMinutes: timeCheckSettings_().window,
+    activityOptions: activityOptions_(),
     paymentStatuses: PAYMENT_STATUSES,
     bookingStatuses: BOOKING_STATUSES,
     scheduleStatuses: Object.keys(SCHEDULE_STATUS).map(function (k) { return SCHEDULE_STATUS[k]; })
@@ -936,6 +944,7 @@ function getSettings(token) {
       Timezone: cfg.Timezone || tz_(),
       TimeCheckIntervalMinutes: timeCheckSettings_().interval,
       TimeCheckResponseMinutes: timeCheckSettings_().window,
+      ActivityOptions: activityOptions_().join('\n'),
       AppVersion: cfg.AppVersion || APP_VERSION
     };
   });
@@ -968,7 +977,18 @@ function saveSettings(token, input) {
       if (checkEvery > 0 && checkEvery < 5) throw appError_('The still-working check interval must be 0 (off) or at least 5 minutes.');
       if (checkEvery > 0 && checkAnswer >= checkEvery) throw appError_('The time to answer must be shorter than the check interval.');
 
+      // Not sent (e.g. an older page) → keep the current list.
+      const activities = String(input.ActivityOptions === undefined || input.ActivityOptions === null ? activityOptions_().join('\n') : input.ActivityOptions).split(/\r?\n/).map(function (s) { return s.trim(); }).filter(Boolean);
+      if (!activities.length) throw appError_('Add at least one activity.');
+      if (activities.length > 30) throw appError_('Use at most 30 activities.');
+      activities.forEach(function (a) {
+        if (a.length > 60) throw appError_('Activity "' + a.slice(0, 20) + '…" is too long (max 60 characters).');
+        if (a === UNSPECIFIED_ACTIVITY) throw appError_('"' + UNSPECIFIED_ACTIVITY + '" is reserved. Please use a different name.');
+      });
+      if (activities.some(function (a, i) { return activities.indexOf(a) !== i; })) throw appError_('Each activity can only be listed once.');
+
       setConfigValues_({
+        ActivityOptions: activities.join('\n'),
         TimeCheckIntervalMinutes: checkEvery,
         TimeCheckResponseMinutes: checkAnswer,
         StudioName: studioName,
@@ -2037,6 +2057,7 @@ function publicTimeEntry_(l, nowStr) {
     }
   }
   out.missedChecks = out.open ? out.check.totalMissed : Number(l.MissedChecks) || 0;
+  out.activities = entryActivities_(l, nowStr);
   out.confirmedChecks = Number(l.ConfirmedChecks) || 0;
   return out;
 }
@@ -2105,18 +2126,21 @@ function getMyTimeClock(token) {
   });
 }
 
-function clockIn(token, note) {
+function clockIn(token, note, activity) {
   return api_(function () {
     const user = requireUser_(token);
     return withLock_(function () {
       const open = openEntry_(user.userId);
       if (open) throw appError_('You are already clocked in since ' + timeLabel_(open.ClockIn) + ' (' + dateLabel_(open.Date) + ').');
+      const act = isBlank_(activity) ? '' : validateActivity_(activity);
       const now = nowStr_();
-      insertRows_(SHEET.TIME, [{
+      const entry = {
         LogID: newId_('TIM'), StaffID: user.userId, Date: now.slice(0, 10), ClockIn: now, ClockOut: '',
         BreakMinutes: 0, BreakStart: '', Hours: null, Source: 'CLOCK',
-        Notes: str_(note, 'Note', { maxLength: 300 }), CreatedAt: now, UpdatedAt: now, EditedBy: ''
-      }]);
+        Notes: act ? '' : str_(note, 'Note', { maxLength: 300 }), CreatedAt: now, UpdatedAt: now, EditedBy: ''
+      };
+      insertRows_(SHEET.TIME, [entry]);
+      if (act) recordActivity_(entry, act, note, 'CLOCK_IN', now);
       return ok_(timeClockState_(user.userId), 'Clocked in at ' + timeLabel_(now) + '.');
     });
   });
@@ -2145,13 +2169,15 @@ function toggleBreak(token) {
 }
 
 /** "Yes, I'm still working" — records the confirmation (late answers still count as missed). */
-function confirmStillWorking(token) {
+function confirmStillWorking(token, activity, note) {
   return api_(function () {
     const user = requireUser_(token);
     return withLock_(function () {
       const open = openEntry_(user.userId);
       if (!open) throw appError_('You are not clocked in.');
+      const act = isBlank_(activity) ? '' : validateActivity_(activity);
       const now = nowStr_();
+      if (act) recordActivity_(open, act, note, 'CHECK', now);
       const patch = Object.assign(settleChecks_(open, now), {
         LastConfirmedAt: now, ConfirmedChecks: (Number(open.ConfirmedChecks) || 0) + 1, UpdatedAt: now
       });
@@ -2230,7 +2256,19 @@ function getTimeOverview(token, filters) {
       return Object.assign(publicTimeEntry_(l, now), { staffName: userName_(l.StaffID), locked: !!s });
     }).sort(function (a, b) { return a.ClockIn < b.ClockIn ? 1 : -1; });
 
-    return { month: month, monthLabel: monthLabel_(month), now: now, clockedIn: clockedIn, summary: summary, entries: entries };
+    // Hours per activity this month, per staff member and for the whole studio.
+    const monthEntries = logs.filter(function (l) { return l.Date >= from && l.Date <= to && (!filters.staffId || l.StaffID === filters.staffId); });
+    const perStaff = {};
+    monthEntries.forEach(function (l) {
+      (perStaff[l.StaffID] = perStaff[l.StaffID] || []).push(entryActivities_(l, now).totals);
+    });
+    const activityByStaff = Object.keys(perStaff).map(function (id) {
+      return { staffId: id, staffName: userName_(id), totals: mergeActivityTotals_(perStaff[id]) };
+    }).sort(function (a, b) { return a.staffName.localeCompare(b.staffName); });
+    const activityTotals = mergeActivityTotals_(activityByStaff.map(function (s) { return s.totals; }));
+
+    return { month: month, monthLabel: monthLabel_(month), now: now, clockedIn: clockedIn, summary: summary, entries: entries,
+      activityByStaff: activityByStaff, activityTotals: activityTotals };
   });
 }
 
@@ -2320,9 +2358,129 @@ function deleteTimeLog(token, logId) {
       if (!l) throw appError_('Time entry not found. It may already have been deleted.', 'NOT_FOUND');
       assertTimeUnlocked_(l.StaffID, l.Date);
       deleteWhere_(SHEET.TIME, function (r) { return r.LogID === logId; });
+      deleteWhere_(SHEET.ACTIVITY, function (r) { return r.TimeLogID === logId; });
       logAudit_(admin, 'Deleted time entry (' + userName_(l.StaffID) + ', ' + dateLabel_(l.Date) + ', ' +
         (l.Hours === null || l.Hours === '' ? 'open' : l.Hours + ' h') + ')', logId, publicRow_(l), '');
       return ok_(null, 'Time entry deleted.');
+    });
+  });
+}
+
+
+// ===== Activity.gs =====
+/**
+ * Activity.gs
+ * "What are you working on?" — activity check-ins during a shift.
+ *
+ * Staff choose an activity (from Settings → Activities) when they clock in, at
+ * each "Are you still working?" check, or any time with "Switch activity".
+ * Each choice starts a segment that lasts until the next choice or clock-out.
+ *
+ * Hours per activity are the segment's share of the shift's WORKED hours: wall
+ * time is scaled so breaks are taken out proportionally and the activity hours
+ * always add up to the hours worked. Time before the first choice in a shift is
+ * shown as "Not specified".
+ */
+
+const UNSPECIFIED_ACTIVITY = 'Not specified';
+
+function defaultActivities_() {
+  return ['Client follow-ups', 'Inquiries & bookings', 'Social media posting', 'Content creation',
+    'Studio shoot support', 'Admin work', 'Meeting / training', 'Other'];
+}
+
+/** The studio's activity list (Config → ActivityOptions, one per line). */
+function activityOptions_() {
+  const raw = String(getConfigValue_('ActivityOptions', '') || '');
+  const list = raw.split(/\r?\n|;/).map(function (s) { return s.trim(); }).filter(Boolean);
+  return list.length ? list : defaultActivities_();
+}
+
+function validateActivity_(activity) {
+  const a = str_(activity, 'Activity', { required: true, maxLength: 60 });
+  if (activityOptions_().indexOf(a) === -1) throw appError_('Please choose an activity from the list.');
+  return a;
+}
+
+/** Writes one activity check-in for an open shift. Must run inside withLock_. */
+function recordActivity_(entry, activity, note, source, nowStr) {
+  insertRows_(SHEET.ACTIVITY, [{
+    ActivityID: newId_('ACT'), TimeLogID: entry.LogID, StaffID: entry.StaffID, Date: entry.Date,
+    LoggedAt: nowStr, Activity: activity, Note: str_(note, 'Note', { maxLength: 300 }), Source: source
+  }]);
+}
+
+/**
+ * pure — Splits a shift into activity segments.
+ * entry: TimeLogs row; logs: its ActivityLogs rows; worked: hours worked so far.
+ */
+function activitySegments_(entry, logs, worked, nowStr) {
+  const start = parseDateTime_(entry.ClockIn);
+  const result = { segments: [], totals: [], current: null };
+  if (start === null) return result;
+  // An open shift that started this very second still has a current activity.
+  const end = Math.max(start, parseDateTime_(entry.ClockOut || nowStr) || start);
+  const wallHours = (end - start) / 3600000;
+  const scale = wallHours > 0 ? (Number(worked) || 0) / wallHours : 0;
+
+  const points = logs.map(function (l) {
+    return { t: Math.min(Math.max(parseDateTime_(l.LoggedAt), start), end), activity: l.Activity, note: l.Note || '', at: l.LoggedAt };
+  }).sort(function (a, b) { return a.t - b.t; });
+  if (!points.length || points[0].t > start) points.unshift({ t: start, activity: UNSPECIFIED_ACTIVITY, note: '', at: entry.ClockIn });
+
+  const byActivity = {};
+  points.forEach(function (p, i) {
+    const to = i + 1 < points.length ? points[i + 1].t : end;
+    if (to <= p.t && i + 1 < points.length && points[i + 1].t === p.t) return; // replaced at the same moment
+    const hours = round2_(Math.max(0, (to - p.t) / 3600000) * scale);
+    result.segments.push({
+      activity: p.activity, note: p.note, from: formatDateTime_(p.t), to: formatDateTime_(to),
+      fromLabel: timeLabel_(formatDateTime_(p.t)), toLabel: entry.ClockOut || i + 1 < points.length ? timeLabel_(formatDateTime_(to)) : 'now',
+      hours: hours
+    });
+    byActivity[p.activity] = round2_((byActivity[p.activity] || 0) + hours);
+  });
+  result.totals = Object.keys(byActivity).map(function (a) { return { activity: a, hours: byActivity[a] }; })
+    .filter(function (x) { return x.hours > 0; })
+    .sort(function (a, b) { return b.hours - a.hours; });
+  const last = result.segments[result.segments.length - 1];
+  if (!entry.ClockOut && last && last.activity !== UNSPECIFIED_ACTIVITY) {
+    result.current = { activity: last.activity, note: last.note, since: last.fromLabel };
+  }
+  return result;
+}
+
+/** Activity breakdown for a time entry (sheet-backed). */
+function entryActivities_(entry, nowStr) {
+  const logs = rows_(SHEET.ACTIVITY).filter(function (a) { return a.TimeLogID === entry.LogID; });
+  const worked = entry.ClockOut ? Number(entry.Hours) || 0 : openShiftHours_(entry, nowStr);
+  return activitySegments_(entry, logs, worked, nowStr);
+}
+
+/** pure — Adds activity totals together (for monthly summaries). */
+function mergeActivityTotals_(lists) {
+  const sum = {};
+  lists.forEach(function (list) {
+    list.forEach(function (x) { sum[x.activity] = round2_((sum[x.activity] || 0) + x.hours); });
+  });
+  return Object.keys(sum).map(function (a) { return { activity: a, hours: sum[a] }; })
+    .sort(function (a, b) { return b.hours - a.hours; });
+}
+
+/* ------------------------------------------------------------------ */
+/* Client-callable                                                     */
+/* ------------------------------------------------------------------ */
+
+/** "Switch activity" while clocked in. */
+function logActivity(token, activity, note) {
+  return api_(function () {
+    const user = requireUser_(token);
+    const a = validateActivity_(activity);
+    return withLock_(function () {
+      const open = openEntry_(user.userId);
+      if (!open) throw appError_('Clock in first, then choose what you are working on.');
+      recordActivity_(open, a, note, 'SWITCH', nowStr_());
+      return ok_(timeClockState_(user.userId), 'Now working on: ' + a + '.');
     });
   });
 }
@@ -3707,6 +3865,21 @@ function runCommissionTests() {
   check('Check: confirmed at 10:05 → next due 10:35', checkStatus_(Object.assign({}, shift, { LastConfirmedAt: '2026-10-02 10:05:00' }), '2026-10-02 10:20:00', 30, 15).nextCheckAt, '2026-10-02 10:35:00');
   check('Check: paused during a break', cs('2026-10-02 11:00:00', Object.assign({}, shift, { BreakStart: '2026-10-02 10:40:00' })), ['paused', 0]);
   check('Check: interval 0 switches checks off', checkStatus_(shift, '2026-10-02 12:00:00', 0, 15).status, 'off');
+
+  // Activity check-ins: hours per activity share the WORKED hours (breaks removed proportionally).
+  const day8 = { LogID: 'L1', ClockIn: '2026-10-02 09:00:00', ClockOut: '2026-10-02 17:00:00', Hours: 7 };
+  const acts = activitySegments_(day8, [
+    { LoggedAt: '2026-10-02 09:00:00', Activity: 'Social media posting', Note: '' },
+    { LoggedAt: '2026-10-02 13:00:00', Activity: 'Admin work', Note: 'Invoices' }
+  ], 7, '2026-10-02 18:00:00');
+  check('Activity: 8 h shift with 1 h break split 4 h / 4 h → 3.5 h each (adds up to 7 h worked)',
+    acts.totals.map(function (x) { return [x.activity, x.hours]; }).sort(), [['Admin work', 3.5], ['Social media posting', 3.5]]);
+  const late = activitySegments_(day8, [{ LoggedAt: '2026-10-02 10:00:00', Activity: 'Content creation' }], 8, '');
+  check('Activity: time before the first check-in shows as "Not specified"',
+    late.totals.map(function (x) { return [x.activity, x.hours]; }), [['Content creation', 7], ['Not specified', 1]]);
+  const live = activitySegments_({ LogID: 'L2', ClockIn: '2026-10-02 09:00:00', ClockOut: '' },
+    [{ LoggedAt: '2026-10-02 09:00:00', Activity: 'Client follow-ups', Note: 'Leads' }], 2, '2026-10-02 11:00:00');
+  check('Activity: open shift shows the current activity', [live.current.activity, live.totals[0].hours], ['Client follow-ups', 2]);
 
   const failed = results.filter(function (r) { return !r.pass; });
   results.forEach(function (r) {

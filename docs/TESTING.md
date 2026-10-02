@@ -17,7 +17,7 @@ page in the real deployment.
 
 Run all of them at `http://localhost:8765/dev/tests.html` (see README → Local testing).
 
-**Result: 124 / 124 passed.**
+**Result: 134 / 134 passed.**
 
 ## Specification test cases (§38)
 
@@ -93,6 +93,7 @@ The §14 table (Staff A ₱92,000 → ₱2,760 → ₱10,760; Staff B ₱118,000
 | Settings | Cannot remove your own Admin email. |
 | Time clock (`Time.gs`) | Missing TimeLogs sheet auto-created on sign-in. Clock in (via the Pages API); double clock-in refused. Break start/end. 3 h shift − 30 min break → 2.5 h. Clock-out without clock-in refused. Staff FORBIDDEN from add/edit/delete/overview. Manual 09:00–17:30 − 60 min → 7.5 h. Overnight 22:00–02:00 → 4 h dated by start day. Overlap, future times, break > shift, bad time format refused. Paid month locked. Corrections and deletions audited with before/after. Schedule shows 14.5 / 90 h. Admin overview lists who is clocked in. Unit: hours maths; hourly base uses time-clock hours unless Actual hours is set; fixed base unaffected. |
 | Still-working checks | Unit: 09:20 nothing due; 09:35 due; 09:50 unanswered → 1 missed; 10:05 next due with 1 missed; confirmation moves the next check; paused on break; interval 0 = off. End-to-end: settings reach the app; check due 35 min after clock-in and confirming records it; unanswered check flagged on the admin Time page and dashboard and kept after a late confirmation; checks pause on break and missed checks survive clock-out; confirming when clocked out refused; settings validated; an older TimeLogs sheet gains the new columns automatically. UI: pop-up appears with a countdown when the app regains focus; Yes closes it and schedules the next check. |
+| Activities | Unit: 8 h shift with 1 h break split 4 h / 4 h → 3.5 h each (= 7 h worked); time before the first check-in is "Not specified"; open shift shows the current activity. End-to-end: default list reaches the app; clock in with an activity, switch, and confirm a check with an activity; unknown activities refused; admin sees the current activity and hours per activity (summing to hours worked); switching requires being clocked in; list editable and validated in Settings (empty, duplicate, reserved name refused); deleting a time entry removes its check-ins. |
 | GitHub Pages API (`Api.gs`) | JSON-P round trip encoded exactly like the browser. Visitor without a session → login. Owner sets own code via the sheet-menu helper and signs in. Admin calls work with the token. Staff token still FORBIDDEN from admin calls. `setupDemoData`, `setupDatabase`, `installDailyTrigger`, `calculateCommission_`, `constructor`, `toString`, `__proto__` all refused. Unsafe callback names refused. Malformed request → friendly error. Accented names and ₱ survive the round trip. |
 
 ## UI checks (local preview, desktop 1360 px and phone 375 px)

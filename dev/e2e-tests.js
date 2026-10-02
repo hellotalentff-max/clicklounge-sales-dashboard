@@ -505,11 +505,59 @@ function runE2E() {
     eq(readTable_('TimeLogs').headers.slice(-4), ['LastConfirmedAt', 'ConfirmedChecks', 'MissedChecks', 'MissedDetail']);
   });
 
+  // ---------- "What are you working on?" activities ----------
+  t('Activities: default list reaches the app', () => {
+    const list = ok(bootstrap(staffTok)).config.activityOptions;
+    eq([list.length > 3, list.indexOf('Social media posting') !== -1], [true, true]);
+  });
+  t('Activities: clock in with an activity, switch, and confirm a check with an activity', () => {
+    let d = ok(apiCall('clockIn', [staffTok, 'Morning posts', 'Social media posting']));
+    eq(d.open.activities.current.activity, 'Social media posting');
+    d = ok(apiCall('logActivity', [staffTok, 'Client follow-ups', 'Calling leads']));
+    eq([d.open.activities.current.activity, d.open.activities.current.note], ['Client follow-ups', 'Calling leads']);
+    backdate(35);
+    d = ok(apiCall('confirmStillWorking', [staffTok, 'Admin work', 'Invoices']));
+    eq([d.open.activities.current.activity, d.open.confirmedChecks], ['Admin work', 1]);
+    // backdate moved clock-in 35 min earlier, so the first 35 min show as unspecified
+    eq(d.open.activities.segments.length >= 2, true);
+  });
+  t('Activities: unknown activities are refused', () => err(logActivity(staffTok, 'Watching movies')));
+  t('Activities: admin sees what each person is doing now and hours per activity', () => {
+    eq(ok(getAdminDashboard(pagesAdmin, month)).clockedIn.find((c) => c.staffName === 'Staff T').activity, 'Admin work');
+    const id = backdate(120);
+    ok(clockOut(staffTok));
+    const o = ok(getTimeOverview(pagesAdmin, { month: nowStr_().slice(0, 7) }));
+    const entry = o.entries.find((e) => e.LogID === id);
+    const total = round2_(entry.activities.totals.reduce((a, x) => a + x.hours, 0));
+    near(total, entry.Hours, 0.05);
+    eq(o.activityTotals.length > 0, true);
+    eq(o.activityByStaff.some((s) => s.staffName === 'Staff T'), true);
+    return entry.activities.totals.map((x) => x.activity + ' ' + x.hours + 'h').join(', ');
+  });
+  t('Activities: switching activity requires being clocked in', () => err(logActivity(staffTok, 'Admin work')));
+  t('Activities: list is editable in Settings and validated', () => {
+    const base = { StudioName: 'ClickLounge Studio', AdminEmails: M.OWNER_EMAIL, Currency: 'PHP', CurrencySymbol: '₱', Timezone: 'Asia/Manila', TimeCheckIntervalMinutes: 30, TimeCheckResponseMinutes: 15 };
+    err(saveSettings(pagesAdmin, Object.assign({}, base, { ActivityOptions: '' })));
+    err(saveSettings(pagesAdmin, Object.assign({}, base, { ActivityOptions: 'Shoot\nShoot' })));
+    err(saveSettings(pagesAdmin, Object.assign({}, base, { ActivityOptions: 'Not specified' })));
+    ok(saveSettings(pagesAdmin, Object.assign({}, base, { ActivityOptions: 'Admin work\nEditing\nShoot' })));
+    eq(ok(bootstrap(staffTok)).config.activityOptions, ['Admin work', 'Editing', 'Shoot']);
+    err(logActivity(staffTok, 'Social media posting'));
+  });
+  t('Activities: deleting a time entry removes its activity check-ins', () => {
+    const entry = rows_(SHEET.TIME).filter((l) => l.StaffID === T && l.ClockOut).pop();
+    const before = rows_(SHEET.ACTIVITY).filter((a) => a.TimeLogID === entry.LogID).length;
+    ok(deleteTimeLog(pagesAdmin, entry.LogID));
+    resetExecutionCaches_();
+    eq([before > 0, rows_(SHEET.ACTIVITY).filter((a) => a.TimeLogID === entry.LogID).length], [true, 0]);
+  });
+
   t('Deleting an entry is audited', () => {
     const entry = rows_(SHEET.TIME).find((l) => l.StaffID === T && l.Date === day(4));
+    const before = ok(getAuditLog(pagesAdmin, { search: 'Deleted time entry' })).total;
     ok(deleteTimeLog(pagesAdmin, entry.LogID));
     eq(!!findById_(SHEET.TIME, 'LogID', entry.LogID), false);
-    eq(ok(getAuditLog(pagesAdmin, { search: 'Deleted time entry' })).entries.length, 1);
+    eq(ok(getAuditLog(pagesAdmin, { search: 'Deleted time entry' })).total, before + 1);
   });
 
   return R;

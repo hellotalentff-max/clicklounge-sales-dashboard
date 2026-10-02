@@ -325,7 +325,18 @@
   .clock-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; align-items: center; }
   .btn.big { min-height: 52px; padding: 12px 26px; font-size: 16px; border-radius: 12px; }
   .clock-note { flex: 1 1 180px; width: auto; }
-  .clock-check { margin-top: 14px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .clock-now { margin-top: 14px; font-size: 15px; }
+  .clock-activity { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) auto; gap: 10px; margin-top: 12px; }
+  .clock-activity .clock-note, .clock-activity select { width: 100%; }
+  .check-activity { text-align: left; display: grid; gap: 8px; margin-top: 16px; }
+  .activity-bars { display: grid; gap: 8px; margin-bottom: 16px; }
+  .abar { display: grid; grid-template-columns: 180px 1fr 80px; gap: 12px; align-items: center; font-size: 13.5px; }
+  .abar-track { height: 10px; background: var(--line-2); border-radius: 99px; overflow: hidden; }
+  .abar-track span { display: block; height: 100%; background: linear-gradient(90deg, #c9a66b, var(--gold)); border-radius: 99px; }
+  .abar-val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .clock-check { margin-top: 14px; color: var(--muted); line-height: 1.7; }
+  .clock-check .badge, .clock-check a { margin-left: 6px; }
+  .clock-activity .btn { justify-content: center; }
   .clock-check strong { color: var(--ink); }
   .check-backdrop { z-index: 90; align-items: center; }
   .check-modal { max-width: 440px; }
@@ -335,6 +346,8 @@
   @media (max-width: 760px) {
     .clock-actions .btn.big { flex: 1 1 40%; justify-content: center; }
     .clock-note { flex-basis: 100%; }
+    .clock-activity { grid-template-columns: 1fr; }
+    .abar { grid-template-columns: 110px 1fr 64px; }
     .clock-elapsed { text-align: left; }
   }
 </style>

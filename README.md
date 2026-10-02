@@ -351,6 +351,21 @@ Admin dashboard, then decide whether to correct the hours.
   can tap **Turn on reminder notifications** for a system notification when the tab is in
   the background.
 
+### "What are you working on?" (activities)
+Staff choose an activity when they **clock in**, at each **still-working check**, or any time
+with **Switch activity** on the Time Clock. Each choice can include a short note (e.g. which
+client). The list is editable in **Settings → Activities** (one per line). The default is:
+Client follow-ups, Inquiries & bookings, Social media posting, Content creation, Studio
+shoot support, Admin work, Meeting / training, Other.
+
+- Each choice lasts until the next one or clock-out. Hours per activity are that stretch's
+  share of the **worked** hours, so breaks come out proportionally and activities always
+  add up to the hours worked. Time before the first choice shows as *Not specified*.
+- **Admin → Time** shows what each clocked-in person is working on now, a **Time by
+  activity** chart for the month, hours by activity per staff member, and a **Timeline** for
+  each shift.
+- Stored in the **ActivityLogs** sheet, which is created automatically.
+
 Data lives in the **TimeLogs** sheet, which is created automatically the first time the
 updated app is opened (no need to re-run setup).
 

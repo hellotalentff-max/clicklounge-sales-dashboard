@@ -199,7 +199,7 @@
 
 /** Loads the real Apps Script server files (src/*.gs) into this window. */
 window.loadServerFiles = async function (base, extraUrls) {
-  const urls = ['Api', 'Utils', 'Database', 'Config', 'Audit', 'Users', 'Commission', 'Time', 'Schedules',
+  const urls = ['Api', 'Utils', 'Database', 'Config', 'Audit', 'Users', 'Commission', 'Time', 'Activity', 'Schedules',
     'Sales', 'Packages', 'Reports', 'Code', 'Setup', 'Tests'].map((f) => base + f + '.gs').concat(extraUrls || []);
   const sources = await Promise.all(urls.map((u) =>
     fetch(u, { cache: 'no-store' }).then((r) => {

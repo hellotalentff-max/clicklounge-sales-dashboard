@@ -26,7 +26,7 @@ function apiFunctions_() {
     listPackages: listPackages, savePackage: savePackage,
     getReport: getReport, getStatement: getStatement,
     getAdminDashboard: getAdminDashboard, getMyDashboard: getMyDashboard,
-    getMyTimeClock: getMyTimeClock, clockIn: clockIn, clockOut: clockOut, toggleBreak: toggleBreak, confirmStillWorking: confirmStillWorking,
+    getMyTimeClock: getMyTimeClock, clockIn: clockIn, clockOut: clockOut, toggleBreak: toggleBreak, confirmStillWorking: confirmStillWorking, logActivity: logActivity,
     getTimeOverview: getTimeOverview, saveTimeLog: saveTimeLog, deleteTimeLog: deleteTimeLog
   };
 }
